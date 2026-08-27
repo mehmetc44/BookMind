@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, UploadFile
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from langchain_openai import ChatOpenAI
@@ -18,7 +18,7 @@ from bookmind.agents import get_chat_agent
 from bookmind.core.config import Config, LLMProvider
 from bookmind.core.schemas.book import BookInfo
 from bookmind.core.schemas.chat import ChatMessage
-from bookmind.graph import process_pdf
+from bookmind.graph import process_pdf, stream_chat_graph
 from bookmind.utils.preview import extract_preview_text
 
 # Paths
@@ -190,25 +190,14 @@ async def delete_book(book_id: str) -> dict:
 
 
 @app.post("/api/chat")
-async def chat(req: ChatMessage) -> dict:
-    """Kullanıcı mesajını ChatAgent (Singleton) ile yanıtlar."""
-    book_map = None
-    if req.book_id:
-        map_path = MAPS_DIR / f"{req.book_id}.json"
-        if map_path.exists():
-            data = json.loads(map_path.read_text(encoding="utf-8"))
-            book_map = data.get("book_map")
+async def chat(req: ChatMessage) -> StreamingResponse:
+    """Kullanıcı mesajını Sohbet LangGraph Akışı ile akışlı (streaming) olarak yanıtlar."""
+    async def stream_generator():
+        async for chunk in stream_chat_graph(req.message):
+            if chunk:
+                yield chunk
 
-    try:
-        chat_agent = get_chat_agent()
-        reply = await chat_agent.ask(
-            message=req.message,
-            book_map=book_map,
-            history=req.history,
-        )
-        return {"success": True, "reply": reply}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Model hatası: {e!s}") from e
+    return StreamingResponse(stream_generator(), media_type="text/plain; charset=utf-8")
 
 
 def main() -> None:

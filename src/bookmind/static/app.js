@@ -139,21 +139,33 @@ async function sendChatMessage() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        book_id: currentBookId || null,
         message,
-        history: [], // Hafıza yok — her mesaj bağımsız
+        history: [],
       }),
     });
 
-    const data = await response.json();
-
     if (!response.ok) {
-      throw new Error(data.detail || 'Model yanıt vermedi.');
+      throw new Error('Model yanıt vermedi.');
     }
 
     typingEl.remove();
-    const reply = data.reply;
-    appendMessage('assistant', reply);
+
+    // Asistan mesaj baloncuğunu oluştur ve canlı akışı aktar
+    const msgEl = appendMessage('assistant', '');
+    const bubble = msgEl.querySelector('.msg-bubble');
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder('utf-8');
+    let assistantReply = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const chunk = decoder.decode(value, { stream: true });
+      assistantReply += chunk;
+      bubble.innerHTML = formatMessage(assistantReply);
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
 
   } catch (error) {
     typingEl.remove();
@@ -177,6 +189,7 @@ function appendMessage(role, content) {
 
   chatMessages.appendChild(msgEl);
   chatMessages.scrollTop = chatMessages.scrollHeight;
+  return msgEl;
 }
 
 function showTyping() {

@@ -14,9 +14,8 @@ class ChatAgent(BaseAgent):
     """BookMind Sohbet Asistanı Agent'ı."""
 
     system_prompt = (
-        "Sen BookMind adlı bir kitap analiz asistanısın. "
-        "Kitaplar ve okuma hakkındaki soruları doğrudan Türkçe yanıtla. "
-        "Düşünme adımlarını (think) yazma."
+        "Sen BookMind adlı sohbet asistanısın. "
+        "Kullanıcının mesajlarını samimi, anlaşılır ve doğrudan Türkçe olarak yanıtla."
     )
 
     def __init__(self) -> None:
@@ -25,34 +24,33 @@ class ChatAgent(BaseAgent):
     async def ask(
         self,
         message: str,
-        book_map: dict | None = None,
         history: list[dict[str, str]] | None = None,
     ) -> str:
         """Kullanıcı mesajını yanıtlar.
 
         Args:
             message: Kullanıcının gönderdiği soru/mesaj.
-            book_map: Seçili kitabın yapısal haritası (varsa).
             history: Önceki sohbet geçmişi.
 
         Returns:
             Modelin yanıt metni.
         """
-        extra_context = None
-        if book_map:
-            import json
-            book_context = json.dumps(book_map, ensure_ascii=False, indent=2)
-            extra_context = (
-                "Kullanıcının seçtiği kitabın yapısal haritası aşağıda verilmiştir. "
-                "Bu haritayı kullanarak kitap hakkındaki soruları yanıtla.\n\n"
-                f"KİTAP HARİTASI:\n```json\n{book_context}\n```"
-            )
-
         return await self.ainvoke(
             user_message=message,
             history=history,
-            extra_context=extra_context,
         )
+
+    async def ask_stream(
+        self,
+        message: str,
+        history: list[dict[str, str]] | None = None,
+    ):
+        """Kullanıcı mesajına akışlı (streaming) yanıt üretir."""
+        async for chunk in self.astream(
+            user_message=message,
+            history=history,
+        ):
+            yield chunk
 
 
 # Global singleton agent instance'ı — her istekte nesne oluşturmayı engeller!

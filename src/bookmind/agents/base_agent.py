@@ -48,15 +48,14 @@ class BaseAgent:
         """Seçilen LLMProvider'a göre Chat model instance'ı döndürür."""
         if self._llm is None:
             if self.provider == LLMProvider.OLLAMA:
-                base_url = Config.OLLAMA_BASE_URL.rstrip('/')
-                if not base_url.endswith('/v1'):
-                    base_url = f"{base_url}/v1"
-                self._llm = ChatOpenAI(
+                self._llm = ChatOllama(
                     model=self.model,
-                    base_url=base_url,
-                    api_key="ollama",  # Ollama API key istemez
+                    base_url=Config.OLLAMA_BASE_URL,
                     temperature=self.temperature,
-                    extra_body={"think": False},
+                    options={
+                        "think": False,
+                        "keep_alive": "24h",
+                    },
                 )
             else:
                 if not Config.DEEPSEEK_API_KEY:
@@ -106,6 +105,17 @@ class BaseAgent:
         messages.append({"role": "user", "content": user_message})
         return messages
 
+    @staticmethod
+    def _clean_response(text: str) -> str:
+        """Düşünme (think) etiketlerini ve iç düşünce bloklarını temizler."""
+        if not text:
+            return ""
+        import re
+        if "</think>" in text:
+            text = text.split("</think>")[-1]
+        text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)
+        return text.strip()
+
     def invoke(
         self,
         user_message: str,
@@ -124,7 +134,7 @@ class BaseAgent:
         """
         messages = self._build_messages(user_message, history, extra_context)
         response = self.llm.invoke(messages)
-        return str(response.content)
+        return self._clean_response(str(response.content))
 
     async def ainvoke(
         self,
@@ -144,7 +154,55 @@ class BaseAgent:
         """
         messages = self._build_messages(user_message, history, extra_context)
         response = await self.llm.ainvoke(messages)
-        return str(response.content)
+        return self._clean_response(str(response.content))
+
+    async def astream(
+        self,
+        user_message: str,
+        history: list[dict[str, str]] | None = None,
+        extra_context: str | None = None,
+    ):
+        """Asenkron akışlı (streaming) LLM çağrısı yapar.
+
+        Args:
+            user_message: Kullanıcı mesajı.
+            history: Konuşma geçmişi.
+            extra_context: Ek sistem bağlamı.
+
+        Yields:
+            Modelin ürettiği metin parçaları (chunks).
+        """
+        messages = self._build_messages(user_message, history, extra_context)
+
+        if self.provider == LLMProvider.OLLAMA:
+            import ollama
+            client = ollama.AsyncClient(host=Config.OLLAMA_BASE_URL)
+            async for chunk in await client.chat(
+                model=self.model,
+                messages=messages,
+                stream=True,
+                think=False,
+                keep_alive="24h",
+            ):
+                content = chunk.get("message", {}).get("content", "")
+                if content:
+                    yield content
+        else:
+            is_thinking = False
+            async for chunk in self.llm.astream(messages):
+                content = str(chunk.content)
+                if not content:
+                    continue
+                if "<think>" in content:
+                    is_thinking = True
+                    continue
+                if "</think>" in content:
+                    is_thinking = False
+                    content = content.split("</think>")[-1]
+                    if not content:
+                        continue
+                if not is_thinking:
+                    yield content
 
     def __repr__(self) -> str:
         return (

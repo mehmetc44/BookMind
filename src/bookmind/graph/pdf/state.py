@@ -1,17 +1,12 @@
-"""graph package state tanımı.
-
-LangGraph pipeline boyunca taşınan tek durum nesnesi.
-"""
+"""PDF haritalama pipeline'ının durumu (State)."""
 
 from __future__ import annotations
 
 from typing import Any, TypedDict
 
 
-class GraphState(TypedDict):
+class PDFGraphState(TypedDict):
     """PDF haritalama pipeline'ının durumu.
-
-    Her node bu dict'i alır, değiştirdiği alanları güncelleyerek döner.
 
     Attributes:
         pdf_path:    İşlenecek PDF dosyasının tam yolu.

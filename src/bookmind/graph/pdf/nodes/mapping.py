@@ -1,25 +1,15 @@
-"""Mapping node'ları — PDF'den kitap haritası oluşturma adımları.
-
-Node'lar:
-    extract_toc_node   → PDF'den içindekiler metnini çeker
-    map_chapters_node  → MapperAgent ile JSON haritaya dönüştürür
-    should_continue    → Conditional edge: hata varsa pipeline'ı durdur
-"""
+"""PDF haritalama node'ları."""
 
 from __future__ import annotations
 
 from bookmind.agents.mapper_agent import MapperAgent
-from bookmind.graph.state import GraphState
+from bookmind.graph.pdf.state import PDFGraphState
 from bookmind.utils.pdf import extract_toc_text, get_page_count
 from langgraph.graph import END
 
 
-def extract_toc_node(state: GraphState) -> GraphState:
-    """Node 1: PDF'den içindekiler metnini ve sayfa sayısını çeker.
-
-    PyMuPDF ile önce built-in TOC'u dener,
-    yoksa ilk N sayfanın ham metnini döndürür.
-    """
+def extract_toc_node(state: PDFGraphState) -> PDFGraphState:
+    """Node 1: PDF'den içindekiler metnini ve sayfa sayısını çeker."""
     try:
         toc_text = extract_toc_text(state["pdf_path"])
         total_pages = get_page_count(state["pdf_path"])
@@ -28,7 +18,7 @@ def extract_toc_node(state: GraphState) -> GraphState:
         return {**state, "error": f"PDF okuma hatası: {e!s}"}
 
 
-async def map_chapters_node(state: GraphState) -> GraphState:
+async def map_chapters_node(state: PDFGraphState) -> PDFGraphState:
     """Node 2: MapperAgent aracılığıyla TOC → BookMap JSON dönüşümü yapar."""
     agent = MapperAgent()
     try:
@@ -43,6 +33,6 @@ async def map_chapters_node(state: GraphState) -> GraphState:
         return {**state, "error": f"MapperAgent hatası: {e!s}"}
 
 
-def should_continue(state: GraphState) -> str:
+def should_continue(state: PDFGraphState) -> str:
     """Conditional edge: Node 1 hata ürettiyse pipeline'ı durdur."""
     return END if state.get("error") else "map_chapters"
