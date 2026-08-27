@@ -3,42 +3,29 @@
 from __future__ import annotations
 
 import json
-import os
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, UploadFile
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from langchain_openai import ChatOpenAI
-from pydantic import BaseModel
 from starlette.requests import Request
 
+from bookmind.core.config import Config
+from bookmind.core.schemas.book import BookInfo
+from bookmind.core.schemas.chat import ChatMessage
 from bookmind.graph import process_pdf
-from bookmind.models import BookInfo
-
-load_dotenv()
-
-
-class ChatMessage(BaseModel):
-    """Chat isteği modeli."""
-
-    book_id: str | None = None
-    message: str
-    history: list[dict[str, str]] = []
 
 # Paths
-BASE_DIR = Path(__file__).resolve().parent.parent.parent  # BookMind root
-DATA_DIR = BASE_DIR / "data"
-PDFS_DIR = DATA_DIR / "pdfs"
-MAPS_DIR = DATA_DIR / "maps"
+PDFS_DIR = Config.PDFS_DIR
+MAPS_DIR = Config.MAPS_DIR
 
 # Dizinleri oluştur
-PDFS_DIR.mkdir(parents=True, exist_ok=True)
-MAPS_DIR.mkdir(parents=True, exist_ok=True)
+Config.PDFS_DIR.mkdir(parents=True, exist_ok=True)
+Config.MAPS_DIR.mkdir(parents=True, exist_ok=True)
 
 # FastAPI app
 app = FastAPI(title="BookMind", version="0.1.0")
@@ -201,9 +188,9 @@ async def chat(req: ChatMessage) -> dict:
         )
 
     llm = ChatOpenAI(
-        model="deepseek-chat",
-        api_key=os.getenv("DEEPSEEK_API_KEY", ""),
-        base_url="https://api.deepseek.com",
+        model=Config.DEEPSEEK_DEFAULT_MODEL,
+        api_key=Config.DEEPSEEK_API_KEY,
+        base_url=Config.DEEPSEEK_BASE_URL,
         temperature=0.7,
         max_tokens=2000,
     )
