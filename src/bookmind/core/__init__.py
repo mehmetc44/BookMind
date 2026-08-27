@@ -1,5 +1,5 @@
 """BookMind core paketi."""
 
-from bookmind.core.config import Config
+from bookmind.core.config import Config, LLMProvider
 
-__all__ = ["Config"]
+__all__ = ["Config", "LLMProvider"]

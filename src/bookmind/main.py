@@ -14,10 +14,11 @@ from fastapi.templating import Jinja2Templates
 from langchain_openai import ChatOpenAI
 from starlette.requests import Request
 
-from bookmind.core.config import Config
+from bookmind.core.config import Config, LLMProvider
 from bookmind.core.schemas.book import BookInfo
 from bookmind.core.schemas.chat import ChatMessage
 from bookmind.graph import process_pdf
+from bookmind.utils.preview import extract_preview_text
 
 # Paths
 PDFS_DIR = Config.PDFS_DIR
@@ -72,6 +73,35 @@ def _get_book_list() -> list[BookInfo]:
 async def index(request: Request) -> HTMLResponse:
     """Ana sayfa."""
     return templates.TemplateResponse(request, "index.html")
+
+
+@app.get("/test", response_class=HTMLResponse)
+async def test_page(request: Request) -> HTMLResponse:
+    """PDF Text Extraction Test Sayfası."""
+    return templates.TemplateResponse(request, "test.html")
+
+
+@app.post("/api/test-pdf-preview")
+async def test_pdf_preview(file: UploadFile) -> dict:
+    """Yüklenen PDF'in ilk 5 sayfasının çıkarılan metnini test için döndürür."""
+    if not file.filename or not file.filename.lower().endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="Sadece PDF dosyaları yüklenebilir.")
+
+    # Gecici kaydet
+    temp_path = PDFS_DIR / f"temp_preview_{file.filename}"
+    content = await file.read()
+    temp_path.write_bytes(content)
+
+    try:
+        pages_preview = extract_preview_text(temp_path, max_pages=5)
+        return {
+            "success": True,
+            "filename": file.filename,
+            "pages": pages_preview
+        }
+    finally:
+        if temp_path.exists():
+            temp_path.unlink()
 
 
 @app.post("/api/upload")
@@ -173,27 +203,35 @@ async def chat(req: ChatMessage) -> dict:
                 "Sen BookMind adlı bir kitap analiz asistanısın. "
                 "Kullanıcının seçtiği kitabın yapısal haritası aşağıda verilmiştir. "
                 "Bu haritayı kullanarak kitap hakkındaki soruları yanıtla. "
-                "Türkçe yanıt ver.\n\n"
+                "Düşünme sürecini (think) yazma, doğrudan Türkçe yanıt ver.\n\n"
                 f"KİTAP HARİTASI:\n```json\n{book_context}\n```"
             )
         else:
             system_prompt = (
                 "Sen BookMind adlı bir kitap analiz asistanısın. "
-                "Kitap ve okuma hakkındaki soruları Türkçe yanıtla."
+                "Kitap ve okuma hakkındaki soruları doğrudan Türkçe yanıtla. Düşünme adımlarını yazma."
             )
     else:
         system_prompt = (
             "Sen BookMind adlı bir kitap analiz asistanısın. "
-            "Kitap ve okuma hakkındaki soruları Türkçe yanıtla."
+            "Kitap ve okuma hakkındaki soruları doğrudan Türkçe yanıtla. Düşünme adımlarını yazma."
         )
 
-    llm = ChatOpenAI(
-        model=Config.DEEPSEEK_DEFAULT_MODEL,
-        api_key=Config.DEEPSEEK_API_KEY,
-        base_url=Config.DEEPSEEK_BASE_URL,
-        temperature=0.7,
-        max_tokens=2000,
-    )
+    if Config.LLM_PROVIDER == LLMProvider.OLLAMA:
+        from langchain_ollama import ChatOllama
+        llm = ChatOllama(
+            model=Config.OLLAMA_MODEL,
+            base_url=Config.OLLAMA_BASE_URL,
+            temperature=0.7,
+        )
+    else:
+        llm = ChatOpenAI(
+            model=Config.DEEPSEEK_DEFAULT_MODEL,
+            api_key=Config.DEEPSEEK_API_KEY,
+            base_url=Config.DEEPSEEK_BASE_URL,
+            temperature=0.7,
+            max_tokens=2000,
+        )
 
     # Mesaj geçmişini oluştur
     messages: list[dict[str, str]] = [{"role": "system", "content": system_prompt}]

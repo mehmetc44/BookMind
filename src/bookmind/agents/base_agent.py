@@ -7,60 +7,65 @@ temel invoke/ainvoke metodlarını sağlar.
 from __future__ import annotations
 
 from typing import Any
-
+from langchain_core.language_models import BaseChatModel
+from langchain_ollama import ChatOllama
 from langchain_openai import ChatOpenAI
 
-from bookmind.core.config import Config
+from bookmind.core.config import Config, LLMProvider
 
 
 class BaseAgent:
-    """Tüm BookMind agent'larının temel sınıfı.
+    """Tüm BookMind agent'larının temel sınıfı."""
 
-    Kullanım:
-        class MyAgent(BaseAgent):
-            system_prompt = "Sen bir..."
-
-            async def run(self, input: str) -> str:
-                messages = self._build_messages(input)
-                return await self.ainvoke(messages)
-    """
-
-    # Alt sınıflar bu değeri override eder
     system_prompt: str = "Sen BookMind adlı bir kitap analiz asistanısın."
 
     def __init__(
         self,
-        model: str = Config.DEEPSEEK_DEFAULT_MODEL,
+        model: str | None = None,
         temperature: float = Config.DEEPSEEK_TEMPERATURE,
         max_tokens: int = Config.DEEPSEEK_MAX_TOKENS,
+        provider: LLMProvider | None = None,
     ) -> None:
         """
         Args:
-            model: Kullanılacak model adı (ör: "deepseek-chat").
-            temperature: Yaratıcılık seviyesi (0 = deterministik).
+            model: Özel model adı. None ise seçili provider'ın varsayılanı kullanılır.
+            temperature: Yaratıcılık seviyesi.
             max_tokens: Maksimum çıktı token sayısı.
+            provider: Sağlayıcı (DEEPSEEK veya OLLAMA). None ise Config.LLM_PROVIDER kullanılır.
         """
-        self.model = model
+        self.provider = provider or Config.LLM_PROVIDER
+        self.model = model or (
+            Config.DEEPSEEK_DEFAULT_MODEL
+            if self.provider == LLMProvider.DEEPSEEK
+            else Config.OLLAMA_MODEL
+        )
         self.temperature = temperature
         self.max_tokens = max_tokens
-        self._llm: ChatOpenAI | None = None
+        self._llm: BaseChatModel | None = None
 
     @property
-    def llm(self) -> ChatOpenAI:
-        """Lazy-init LLM instance'ı döndürür."""
+    def llm(self) -> BaseChatModel:
+        """Seçilen LLMProvider'a göre Chat model instance'ı döndürür."""
         if self._llm is None:
-            if not Config.DEEPSEEK_API_KEY:
-                raise ValueError(
-                    "DEEPSEEK_API_KEY bulunamadı. "
-                    ".env dosyasına eklediğinizden emin olun."
+            if self.provider == LLMProvider.OLLAMA:
+                self._llm = ChatOllama(
+                    model=self.model,
+                    base_url=Config.OLLAMA_BASE_URL,
+                    temperature=self.temperature,
                 )
-            self._llm = ChatOpenAI(
-                model=self.model,
-                api_key=Config.DEEPSEEK_API_KEY,
-                base_url=Config.DEEPSEEK_BASE_URL,
-                temperature=self.temperature,
-                max_tokens=self.max_tokens,
-            )
+            else:
+                if not Config.DEEPSEEK_API_KEY:
+                    raise ValueError(
+                        "DEEPSEEK_API_KEY bulunamadı. "
+                        ".env dosyasına eklediğinizden emin olun."
+                    )
+                self._llm = ChatOpenAI(
+                    model=self.model,
+                    api_key=Config.DEEPSEEK_API_KEY,
+                    base_url=Config.DEEPSEEK_BASE_URL,
+                    temperature=self.temperature,
+                    max_tokens=self.max_tokens,
+                )
         return self._llm
 
     def _build_messages(

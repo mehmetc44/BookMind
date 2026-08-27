@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BookMind — PDF Metin Çıkarma Testi (İlk 5 Sayfa)</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        body {
+            overflow-y: auto !important;
+            height: auto !important;
+        }
+        .test-container {
+            max-width: 1000px;
+            margin: 40px auto;
+            padding: 24px;
+        }
+        .test-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--surface-border);
+            border-radius: var(--radius-xl);
+            padding: 32px;
+            box-shadow: var(--shadow-lg);
+        }
+        .test-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 8px;
+            background: var(--gradient-accent);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .test-desc {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            margin-bottom: 24px;
+        }
+        .page-block {
+            margin-top: 24px;
+            border: 1px solid var(--surface-border);
+            border-radius: var(--radius-md);
+            overflow: hidden;
+            background: var(--bg-primary);
+        }
+        .page-header {
+            background: var(--bg-elevated);
+            padding: 10px 16px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--accent-primary);
+            border-bottom: 1px solid var(--surface-border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .page-content {
+            padding: 16px;
+            font-family: 'Fira Code', monospace;
+            font-size: 0.82rem;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-break: break-word;
+            color: var(--text-primary);
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .back-link {
+            display: inline-block;
+            margin-bottom: 16px;
+            color: var(--text-tertiary);
+            text-decoration: none;
+            font-size: 0.85rem;
+        }
+        .back-link:hover {
+            color: var(--text-primary);
+        }
+    </style>
+</head>
+<body>
+    <div class="ambient-bg">
+        <div class="ambient-orb orb-1"></div>
+        <div class="ambient-orb orb-2"></div>
+    </div>
+
+    <div class="test-container">
+        <a href="/" class="back-link">← Ana Uygulamaya Dön</a>
+        <div class="test-card">
+            <h1 class="test-title">PDF Text Extraction Laboratuvarı</h1>
+            <p class="test-desc">Seçeceğiniz PDF dosyasının ilk 5 sayfası PyMuPDF ile ham metne (plain text) dönüştürülüp aşağıda gösterilir.</p>
+
+            <div class="upload-area" id="testUploadArea">
+                <input type="file" id="testFileInput" accept=".pdf" hidden>
+                <div class="upload-icon">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </div>
+                <p class="upload-text">Test edilecek PDF'i buraya sürükleyin</p>
+                <p class="upload-subtext">veya tıklayarak seçin</p>
+            </div>
+
+            <div id="resultsContainer" style="display: none; margin-top: 32px;">
+                <h3 id="resultFilename" style="font-size: 1.1rem; color: var(--text-primary); margin-bottom: 16px;"></h3>
+                <div id="pagesList"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="loading-overlay" id="loadingOverlay" style="display:none;">
+        <div class="loading-card">
+            <div class="loading-spinner">
+                <div class="spinner-ring"></div>
+            </div>
+            <h3 class="loading-title">Metin Çıkarılıyor...</h3>
+        </div>
+    </div>
+
+    <script>
+        const testUploadArea = document.getElementById('testUploadArea');
+        const testFileInput = document.getElementById('testFileInput');
+        const resultsContainer = document.getElementById('resultsContainer');
+        const resultFilename = document.getElementById('resultFilename');
+        const pagesList = document.getElementById('pagesList');
+        const loadingOverlay = document.getElementById('loadingOverlay');
+
+        testUploadArea.addEventListener('click', () => testFileInput.click());
+
+        testFileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                runPreview(e.target.files[0]);
+            }
+        });
+
+        testUploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            testUploadArea.classList.add('drag-over');
+        });
+
+        testUploadArea.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            testUploadArea.classList.remove('drag-over');
+        });
+
+        testUploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            testUploadArea.classList.remove('drag-over');
+            if (e.dataTransfer.files.length > 0 && e.dataTransfer.files[0].type === 'application/pdf') {
+                runPreview(e.dataTransfer.files[0]);
+            }
+        });
+
+        async function runPreview(file) {
+            loadingOverlay.style.display = 'flex';
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const res = await fetch('/api/test-pdf-preview', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json();
+
+                if (!res.ok) throw new Error(data.detail || 'İşlem başarısız');
+
+                resultFilename.textContent = '📄 ' + data.filename + ' (İlk 5 Sayfa Çıktısı)';
+                pagesList.innerHTML = data.pages.map(p => `
+                    <div class="page-block">
+                        <div class="page-header">
+                            <span>SAYFA ${p.page_num}</span>
+                            <span style="color: var(--text-tertiary); font-weight: normal;">${p.text.length} Karakter</span>
+                        </div>
+                        <div class="page-content">${escapeHtml(p.text)}</div>
+                    </div>
+                `).join('');
+
+                resultsContainer.style.display = 'block';
+            } catch (err) {
+                alert('Hata: ' + err.message);
+            } finally {
+                loadingOverlay.style.display = 'none';
+            }
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
+</body>
+</html>

@@ -7,8 +7,7 @@ Kullanım:
     model   = Config.DEEPSEEK_DEFAULT_MODEL
 """
 
-from __future__ import annotations
-
+from enum import Enum
 import os
 from pathlib import Path
 
@@ -19,17 +18,22 @@ _ENV_PATH = Path(__file__).resolve().parents[3] / ".env"
 load_dotenv(dotenv_path=_ENV_PATH)
 
 
+class LLMProvider(str, Enum):
+    """Desteklenen LLM sağlayıcıları."""
+    DEEPSEEK = "deepseek"
+    OLLAMA = "ollama"
+
+
 class Config:
-    """Uygulama genelinde kullanılan tüm konfigürasyon değerleri.
+    """Uygulama genelinde kullanılan tüm konfigürasyon değerleri."""
 
-    .env dosyasındaki değerler sınıf yüklenirken statik değişkenlere atanır.
-    Değişkenlere doğrudan sınıf üzerinden erişilir, instance oluşturulmaz.
+    # ── LLM Sağlayıcı Seçimi ──────────────────────────────────────────────────
+    # 'deepseek' veya 'ollama'
+    LLM_PROVIDER: LLMProvider = LLMProvider(
+        os.getenv("LLM_PROVIDER", "ollama").lower()
+    )
 
-        Config.DEEPSEEK_API_KEY   → str
-        Config.DATA_DIR           → Path
-    """
-
-    # ── DeepSeek / LLM ────────────────────────────────────────────────────────
+    # ── DeepSeek Ayarları ─────────────────────────────────────────────────────
     DEEPSEEK_API_KEY: str = os.getenv("DEEPSEEK_API_KEY", "")
     DEEPSEEK_BASE_URL: str = os.getenv(
         "DEEPSEEK_BASE_URL", "https://api.deepseek.com"
@@ -37,6 +41,12 @@ class Config:
     DEEPSEEK_DEFAULT_MODEL: str = os.getenv(
         "DEEPSEEK_DEFAULT_MODEL", "deepseek-chat"
     )
+
+    # ── Ollama Ayarları ───────────────────────────────────────────────────────
+    OLLAMA_BASE_URL: str = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+    OLLAMA_MODEL: str = os.getenv("OLLAMA_MODEL", "qwen3.5:4b")
+
+    # ── Genel LLM Parametreleri ───────────────────────────────────────────────
     DEEPSEEK_TEMPERATURE: float = float(
         os.getenv("DEEPSEEK_TEMPERATURE", "0.1")
     )
@@ -60,15 +70,11 @@ class Config:
 
     @classmethod
     def validate(cls) -> None:
-        """Zorunlu değerlerin varlığını kontrol eder.
-
-        Raises:
-            EnvironmentError: Zorunlu bir değer eksikse.
-        """
-        if not cls.DEEPSEEK_API_KEY:
+        """Zorunlu değerlerin varlığını kontrol eder."""
+        if cls.LLM_PROVIDER == LLMProvider.DEEPSEEK and not cls.DEEPSEEK_API_KEY:
             raise EnvironmentError(
-                "DEEPSEEK_API_KEY bulunamadı. "
-                ".env dosyasına 'DEEPSEEK_API_KEY=sk-...' satırını ekleyin."
+                "LLM_PROVIDER=deepseek seçildi ancak DEEPSEEK_API_KEY bulunamadı. "
+                ".env dosyasına 'DEEPSEEK_API_KEY=sk-...' ekleyin."
             )
 
     def __init_subclass__(cls, **kwargs: object) -> None:
