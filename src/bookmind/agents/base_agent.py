@@ -48,10 +48,15 @@ class BaseAgent:
         """Seçilen LLMProvider'a göre Chat model instance'ı döndürür."""
         if self._llm is None:
             if self.provider == LLMProvider.OLLAMA:
-                self._llm = ChatOllama(
+                base_url = Config.OLLAMA_BASE_URL.rstrip('/')
+                if not base_url.endswith('/v1'):
+                    base_url = f"{base_url}/v1"
+                self._llm = ChatOpenAI(
                     model=self.model,
-                    base_url=Config.OLLAMA_BASE_URL,
+                    base_url=base_url,
+                    api_key="ollama",  # Ollama API key istemez
                     temperature=self.temperature,
+                    extra_body={"think": False},
                 )
             else:
                 if not Config.DEEPSEEK_API_KEY:
@@ -85,6 +90,9 @@ class BaseAgent:
             LLM'e gönderilecek mesaj listesi.
         """
         system_content = self.system_prompt
+        if self.provider == LLMProvider.OLLAMA:
+            system_content += "\nDo not use <think> tags. Answer directly."
+
         if extra_context:
             system_content += f"\n\n{extra_context}"
 
