@@ -1,20 +1,12 @@
-"""PDF işleme yardımcı fonksiyonları."""
+"""PDF işleme yardımcı araçları."""
 
 from pathlib import Path
-
 import pymupdf
+from bookmind.core.config import Config
 
 
 def extract_full_text(pdf_path: str | Path, max_pages: int | None = None) -> str:
-    """PDF'den tüm metni çıkarır.
-
-    Args:
-        pdf_path: PDF dosya yolu.
-        max_pages: Maksimum okunacak sayfa sayısı. None ise tamamı okunur.
-
-    Returns:
-        Birleştirilmiş metin.
-    """
+    """PDF'den tüm metni çıkarır."""
     doc = pymupdf.open(str(pdf_path))
     pages_to_read = max_pages if max_pages else len(doc)
     pages_to_read = min(pages_to_read, len(doc))
@@ -33,18 +25,11 @@ def extract_full_text(pdf_path: str | Path, max_pages: int | None = None) -> str
 def extract_toc_text(pdf_path: str | Path) -> str:
     """PDF'den içindekiler bölümünü çıkarmaya çalışır.
 
-    Önce PyMuPDF'in yerleşik TOC özelliğini dener.
-    Bulamazsa ilk 15 sayfanın metnini döndürür.
-
-    Args:
-        pdf_path: PDF dosya yolu.
-
-    Returns:
-        İçindekiler metni veya ilk sayfaların metni.
+    Önce PyMuPDF yerleşik TOC özelliğini dener.
+    Bulamazsa Config.TOC_SCAN_PAGES kadar ilk sayfanın metnini döndürür.
     """
     doc = pymupdf.open(str(pdf_path))
 
-    # PyMuPDF yerleşik TOC
     toc = doc.get_toc()
     if toc:
         toc_lines: list[str] = []
@@ -54,9 +39,8 @@ def extract_toc_text(pdf_path: str | Path) -> str:
         doc.close()
         return "İÇİNDEKİLER (PDF metadata):\n" + "\n".join(toc_lines)
 
-    # Yerleşik TOC yoksa, ilk sayfaları gönder
     total_pages = len(doc)
-    scan_pages = min(15, total_pages)
+    scan_pages = min(Config.TOC_SCAN_PAGES, total_pages)
     text_parts: list[str] = []
     for i in range(scan_pages):
         page = doc[i]

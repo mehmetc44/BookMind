@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from bookmind.agents.mapper_agent import MapperAgent
 from bookmind.graph.state import GraphState
-from bookmind.pdf_utils import extract_toc_text, get_page_count
+from bookmind.utils.pdf import extract_toc_text, get_page_count
 from langgraph.graph import END
 
 
