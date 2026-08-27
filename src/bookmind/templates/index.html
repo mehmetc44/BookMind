@@ -19,7 +19,7 @@
     </div>
 
     <div class="app-layout">
-        <!-- Sidebar -->
+        <!-- ═══ Sidebar ═══ -->
         <aside class="sidebar" id="sidebar">
             <div class="sidebar-header">
                 <div class="logo">
@@ -65,13 +65,11 @@
                     <span>Kitaplarım</span>
                     <span class="book-count" id="bookCount">0</span>
                 </div>
-                <div class="book-list" id="bookList">
-                    <!-- Kitaplar buraya dinamik olarak eklenir -->
-                </div>
+                <div class="book-list" id="bookList"></div>
             </div>
         </aside>
 
-        <!-- Main Content -->
+        <!-- ═══ Main Panel ═══ -->
         <main class="main-content" id="mainContent">
             <!-- Empty State -->
             <div class="empty-state" id="emptyState">
@@ -91,7 +89,7 @@
                 </button>
             </div>
 
-            <!-- Book Detail View -->
+            <!-- Book Detail -->
             <div class="book-detail" id="bookDetail" style="display:none;">
                 <div class="detail-header">
                     <div class="detail-info">
@@ -118,22 +116,67 @@
                     <div class="tree-header">
                         <h2 class="tree-title">Kitap Haritası</h2>
                         <div class="tree-actions">
-                            <button class="tree-btn" id="expandAllBtn" title="Tümünü aç">
+                            <button class="tree-btn" id="expandAllBtn">
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
                                 Aç
                             </button>
-                            <button class="tree-btn" id="collapseAllBtn" title="Tümünü kapat">
+                            <button class="tree-btn" id="collapseAllBtn">
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 15l-6-6-6 6"/></svg>
                                 Kapat
                             </button>
                         </div>
                     </div>
-                    <div class="chapter-tree" id="chapterTree">
-                        <!-- Tree view buraya render edilir -->
-                    </div>
+                    <div class="chapter-tree" id="chapterTree"></div>
                 </div>
             </div>
         </main>
+
+        <!-- ═══ Chat Panel ═══ -->
+        <aside class="chat-panel" id="chatPanel">
+            <div class="chat-header">
+                <div class="chat-header-info">
+                    <div class="chat-avatar">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 2a10 10 0 100 20 10 10 0 000-20z"/>
+                            <path d="M12 6v6l4 2"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <div class="chat-title">BookMind AI</div>
+                        <div class="chat-subtitle" id="chatSubtitle">Bir kitap seçin</div>
+                    </div>
+                </div>
+                <button class="chat-clear-btn" id="chatClearBtn" title="Sohbeti temizle">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/>
+                    </svg>
+                </button>
+            </div>
+
+            <div class="chat-messages" id="chatMessages">
+                <div class="chat-welcome">
+                    <div class="welcome-icon">✦</div>
+                    <p class="welcome-text">Bir kitap seçin ve kitap hakkında sorular sorun. Bölümler, konular ve içerik hakkında size yardımcı olabilirim.</p>
+                </div>
+            </div>
+
+            <div class="chat-input-area">
+                <div class="chat-input-wrapper">
+                    <textarea
+                        id="chatInput"
+                        class="chat-input"
+                        placeholder="Kitap hakkında bir şey sorun..."
+                        rows="1"
+                    ></textarea>
+                    <button class="chat-send-btn" id="chatSendBtn" title="Gönder">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M22 2L11 13M22 2L15 22l-4-9-9-4 19-7z" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </button>
+                </div>
+                <p class="chat-hint">Enter ile gönder · Shift+Enter satır atla</p>
+            </div>
+        </aside>
     </div>
 
     <!-- Loading Overlay -->

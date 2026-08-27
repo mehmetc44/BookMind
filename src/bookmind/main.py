@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -12,12 +13,22 @@ from fastapi import FastAPI, HTTPException, UploadFile
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from langchain_openai import ChatOpenAI
+from pydantic import BaseModel
 from starlette.requests import Request
 
 from bookmind.graph import process_pdf
 from bookmind.models import BookInfo
 
 load_dotenv()
+
+
+class ChatMessage(BaseModel):
+    """Chat isteği modeli."""
+
+    book_id: str | None = None
+    message: str
+    history: list[dict[str, str]] = []
 
 # Paths
 BASE_DIR = Path(__file__).resolve().parent.parent.parent  # BookMind root
@@ -158,6 +169,56 @@ async def delete_book(book_id: str) -> dict:
     map_path.unlink()
 
     return {"success": True, "message": "Kitap başarıyla silindi."}
+
+
+@app.post("/api/chat")
+async def chat(req: ChatMessage) -> dict:
+    """Kullanıcı mesajını DeepSeek'e gönder, yanıt döndür."""
+
+    # Sistem promptunu oluştur
+    if req.book_id:
+        map_path = MAPS_DIR / f"{req.book_id}.json"
+        if map_path.exists():
+            data = json.loads(map_path.read_text(encoding="utf-8"))
+            book_map = data.get("book_map", {})
+            book_context = json.dumps(book_map, ensure_ascii=False, indent=2)
+            system_prompt = (
+                "Sen BookMind adlı bir kitap analiz asistanısın. "
+                "Kullanıcının seçtiği kitabın yapısal haritası aşağıda verilmiştir. "
+                "Bu haritayı kullanarak kitap hakkındaki soruları yanıtla. "
+                "Türkçe yanıt ver.\n\n"
+                f"KİTAP HARİTASI:\n```json\n{book_context}\n```"
+            )
+        else:
+            system_prompt = (
+                "Sen BookMind adlı bir kitap analiz asistanısın. "
+                "Kitap ve okuma hakkındaki soruları Türkçe yanıtla."
+            )
+    else:
+        system_prompt = (
+            "Sen BookMind adlı bir kitap analiz asistanısın. "
+            "Kitap ve okuma hakkındaki soruları Türkçe yanıtla."
+        )
+
+    llm = ChatOpenAI(
+        model="deepseek-chat",
+        api_key=os.getenv("DEEPSEEK_API_KEY", ""),
+        base_url="https://api.deepseek.com",
+        temperature=0.7,
+        max_tokens=2000,
+    )
+
+    # Mesaj geçmişini oluştur
+    messages: list[dict[str, str]] = [{"role": "system", "content": system_prompt}]
+    for h in req.history[-10:]:  # Son 10 mesajı bağlam olarak al
+        messages.append(h)
+    messages.append({"role": "user", "content": req.message})
+
+    try:
+        response = llm.invoke(messages)
+        return {"success": True, "reply": response.content}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Model hatası: {e!s}") from e
 
 
 def main() -> None:

@@ -1,18 +1,18 @@
 /**
  * BookMind — Frontend JavaScript
- * PDF yükleme, kitap listesi, tree view rendering
+ * PDF yükleme, kitap listesi, tree view rendering, chat
  */
 
 // ============ State ============
 let currentBookId = null;
 let books = [];
+let isChatLoading = false;
 
 // ============ DOM Elements ============
 const uploadArea = document.getElementById('uploadArea');
 const fileInput = document.getElementById('fileInput');
 const bookList = document.getElementById('bookList');
 const bookCount = document.getElementById('bookCount');
-const mainContent = document.getElementById('mainContent');
 const emptyState = document.getElementById('emptyState');
 const bookDetail = document.getElementById('bookDetail');
 const loadingOverlay = document.getElementById('loadingOverlay');
@@ -22,20 +22,26 @@ const deleteBookBtn = document.getElementById('deleteBookBtn');
 const expandAllBtn = document.getElementById('expandAllBtn');
 const collapseAllBtn = document.getElementById('collapseAllBtn');
 
+// Chat DOM
+const chatMessages = document.getElementById('chatMessages');
+const chatInput = document.getElementById('chatInput');
+const chatSendBtn = document.getElementById('chatSendBtn');
+const chatClearBtn = document.getElementById('chatClearBtn');
+const chatSubtitle = document.getElementById('chatSubtitle');
+
 // ============ Init ============
 document.addEventListener('DOMContentLoaded', () => {
   setupUpload();
   setupActions();
+  setupChat();
   loadBooks();
 });
 
 // ============ Upload Setup ============
 function setupUpload() {
-  // Click to upload
   uploadArea.addEventListener('click', () => fileInput.click());
   uploadBtn.addEventListener('click', () => fileInput.click());
 
-  // File selected
   fileInput.addEventListener('change', (e) => {
     if (e.target.files.length > 0) {
       handleUpload(e.target.files[0]);
@@ -43,7 +49,6 @@ function setupUpload() {
     }
   });
 
-  // Drag & drop
   uploadArea.addEventListener('dragover', (e) => {
     e.preventDefault();
     uploadArea.classList.add('drag-over');
@@ -65,7 +70,6 @@ function setupUpload() {
     }
   });
 
-  // Global drag prevention
   document.addEventListener('dragover', (e) => e.preventDefault());
   document.addEventListener('drop', (e) => e.preventDefault());
 }
@@ -73,13 +77,129 @@ function setupUpload() {
 // ============ Actions Setup ============
 function setupActions() {
   deleteBookBtn.addEventListener('click', () => {
-    if (currentBookId) {
-      deleteBook(currentBookId);
-    }
+    if (currentBookId) deleteBook(currentBookId);
   });
 
   expandAllBtn.addEventListener('click', () => toggleAllNodes(true));
   collapseAllBtn.addEventListener('click', () => toggleAllNodes(false));
+}
+
+// ============ Chat Setup ============
+function setupChat() {
+  // Send on button click
+  chatSendBtn.addEventListener('click', sendChatMessage);
+
+  // Send on Enter, new line on Shift+Enter
+  chatInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendChatMessage();
+    }
+  });
+
+  // Auto-resize textarea
+  chatInput.addEventListener('input', () => {
+    chatInput.style.height = 'auto';
+    chatInput.style.height = Math.min(chatInput.scrollHeight, 120) + 'px';
+  });
+
+  // Clear chat
+  chatClearBtn.addEventListener('click', () => {
+    chatHistory = [];
+    chatMessages.innerHTML = `
+      <div class="chat-welcome">
+        <div class="welcome-icon">✦</div>
+        <p class="welcome-text">Bir kitap seçin ve kitap hakkında sorular sorun. Bölümler, konular ve içerik hakkında size yardımcı olabilirim.</p>
+      </div>`;
+  });
+}
+
+async function sendChatMessage() {
+  const message = chatInput.value.trim();
+  if (!message || isChatLoading) return;
+
+  // UI temizle
+  chatInput.value = '';
+  chatInput.style.height = 'auto';
+
+  // Welcome mesajını kaldır
+  const welcome = chatMessages.querySelector('.chat-welcome');
+  if (welcome) welcome.remove();
+
+  // Kullanıcı mesajını ekle
+  appendMessage('user', message);
+
+  // Typing indicator göster
+  const typingEl = showTyping();
+  isChatLoading = true;
+  chatSendBtn.disabled = true;
+
+  try {
+    const response = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        book_id: currentBookId || null,
+        message,
+        history: [], // Hafıza yok — her mesaj bağımsız
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.detail || 'Model yanıt vermedi.');
+    }
+
+    typingEl.remove();
+    const reply = data.reply;
+    appendMessage('assistant', reply);
+
+  } catch (error) {
+    typingEl.remove();
+    appendMessage('assistant', `⚠️ Hata: ${error.message}`);
+  } finally {
+    isChatLoading = false;
+    chatSendBtn.disabled = false;
+    chatInput.focus();
+  }
+}
+
+function appendMessage(role, content) {
+  const now = new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+
+  const msgEl = document.createElement('div');
+  msgEl.className = `chat-msg ${role}`;
+  msgEl.innerHTML = `
+    <div class="msg-bubble">${formatMessage(content)}</div>
+    <span class="msg-time">${now}</span>
+  `;
+
+  chatMessages.appendChild(msgEl);
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+function showTyping() {
+  const el = document.createElement('div');
+  el.className = 'typing-indicator';
+  el.innerHTML = `
+    <div class="typing-bubble">
+      <div class="typing-dot"></div>
+      <div class="typing-dot"></div>
+      <div class="typing-dot"></div>
+    </div>
+  `;
+  chatMessages.appendChild(el);
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+  return el;
+}
+
+function formatMessage(text) {
+  // Basit markdown: **bold**, *italic*, satır sonları
+  return escapeHtml(text)
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    .replace(/\n/g, '<br>');
 }
 
 // ============ API Calls ============
@@ -103,8 +223,6 @@ async function handleUpload(file) {
 
     showToast(`"${data.title}" başarıyla haritalandı!`, 'success');
     await loadBooks();
-
-    // Yeni yüklenen kitabı seç
     selectBook(data.book_id);
   } catch (error) {
     showToast(error.message, 'error');
@@ -126,10 +244,15 @@ async function loadBooks() {
 async function selectBook(bookId) {
   currentBookId = bookId;
 
-  // Aktif kitabı işaretle
   document.querySelectorAll('.book-item').forEach((el) => {
     el.classList.toggle('active', el.dataset.bookId === bookId);
   });
+
+  // Chat subtitle güncelle
+  const book = books.find((b) => b.id === bookId);
+  if (book && chatSubtitle) {
+    chatSubtitle.textContent = book.title;
+  }
 
   try {
     const response = await fetch(`/api/books/${bookId}/map`);
@@ -149,6 +272,7 @@ async function deleteBook(bookId) {
 
     showToast('Kitap silindi.', 'success');
     currentBookId = null;
+    if (chatSubtitle) chatSubtitle.textContent = 'Bir kitap seçin';
     await loadBooks();
     showEmptyState();
   } catch (error) {
@@ -185,22 +309,18 @@ function renderBookList() {
 
 function renderBookDetail(data) {
   const bookMap = data.book_map;
-  const meta = data.meta;
 
-  // Header
   document.getElementById('detailTitle').textContent = bookMap.book_title;
   document.getElementById('detailAuthor').querySelector('span').textContent = bookMap.author;
   document.getElementById('detailPages').querySelector('span').textContent = `${bookMap.total_pages} sayfa`;
 
-  // Tree
   const treeContainer = document.getElementById('chapterTree');
   treeContainer.innerHTML = renderTree(bookMap.chapters);
 
-  // Show detail, hide empty
   emptyState.style.display = 'none';
   bookDetail.style.display = 'block';
   bookDetail.style.animation = 'none';
-  bookDetail.offsetHeight; // reflow
+  bookDetail.offsetHeight;
   bookDetail.style.animation = 'slideIn 0.4s ease-out';
 }
 
@@ -266,25 +386,12 @@ function toggleNode(nodeId) {
 }
 
 function toggleAllNodes(expand) {
-  const allChildren = document.querySelectorAll('.tree-node-children');
-  const allToggles = document.querySelectorAll('.tree-toggle:not(.no-children)');
-
-  allChildren.forEach((el) => {
-    if (expand) {
-      el.classList.remove('collapsed');
-      el.classList.add('expanded');
-    } else {
-      el.classList.remove('expanded');
-      el.classList.add('collapsed');
-    }
+  document.querySelectorAll('.tree-node-children').forEach((el) => {
+    el.classList.toggle('collapsed', !expand);
+    el.classList.toggle('expanded', expand);
   });
-
-  allToggles.forEach((el) => {
-    if (expand) {
-      el.classList.add('expanded');
-    } else {
-      el.classList.remove('expanded');
-    }
+  document.querySelectorAll('.tree-toggle:not(.no-children)').forEach((el) => {
+    el.classList.toggle('expanded', expand);
   });
 }
 
@@ -301,17 +408,12 @@ function showLoading(show) {
 function showToast(message, type = 'success') {
   const toast = document.createElement('div');
   toast.className = 'toast';
-
   const icon = type === 'success' ? '✓' : '✕';
-
   toast.innerHTML = `
     <div class="toast-icon ${type}">${icon}</div>
     <div class="toast-message">${escapeHtml(message)}</div>
   `;
-
   toastContainer.appendChild(toast);
-
-  // Auto remove
   setTimeout(() => {
     toast.classList.add('toast-out');
     setTimeout(() => toast.remove(), 300);
