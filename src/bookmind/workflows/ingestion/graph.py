@@ -67,6 +67,7 @@ class PDFProcessingGraph:
             "toc_text": "",
             "total_pages": 0,
             "book_map": None,
+            "layout_elements": None,
             "error": None,
         }
 
@@ -75,4 +76,8 @@ class PDFProcessingGraph:
         if result.get("error"):
             return {"success": False, "error": result["error"]}
 
-        return {"success": True, "book_map": result["book_map"]}
+        return {
+            "success": True,
+            "book_map": result.get("book_map"),
+            "layout_elements": result.get("layout_elements"),
+        }

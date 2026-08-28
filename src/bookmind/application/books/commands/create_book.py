@@ -33,12 +33,40 @@ class CreateBookCommandHandler:
         orchestrator = PDFProcessingGraph()
         result = await orchestrator.run(str(pdf_path))
 
-        if not result.get("success") or not result.get("book_map"):
-            # Hata durumunda yüklenen geçici PDF'i sil
+        book_map = result.get("book_map")
+        layout_elements = result.get("layout_elements")
+
+        if not book_map and layout_elements:
+            # Gözlemci motorunun çıkardığı fiziki etiketleri UI haritasına çevir
+            chapters = []
+            for idx, el in enumerate(layout_elements):
+                el_type = str(el["type"]).upper()
+                raw_content = str(el["content"])
+                snippet = raw_content[:150] + ("..." if len(raw_content) > 150 else "")
+                chapters.append({
+                    "id": f"element_{idx+1}",
+                    "title": f"[{el_type}] {snippet}",
+                    "page_start": el["page"],
+                    "page_end": el["page"],
+                    "summary": f"Fiziki Tip: {el['type']} | Font Boyutu: {el.get('font_size')}pt | Koyu: {el.get('is_bold')}",
+                    "topics": [el["type"]],
+                    "keywords": [f"Sayfa {el['page']}"],
+                    "children": []
+                })
+
+            total_pages = max([e["page"] for e in layout_elements] or [1])
+            book_map = {
+                "book_title": f"{file.filename} (Ham Layout Etiketli)",
+                "author": "Gözlemci Motoru (LayoutParserEngine)",
+                "total_pages": total_pages,
+                "chapters": chapters
+            }
+
+        if not result.get("success") or not book_map:
             pdf_path.unlink(missing_ok=True)
             raise HTTPException(
                 status_code=500,
-                detail=result.get("error", "1. Kademe TOC haritası çıkarılamadı."),
+                detail=result.get("error", "PDF çözümlenemedi veya etiket çıkarılamadı."),
             )
 
         # JSON dosyasını MapRepository ile kaydet
@@ -49,7 +77,8 @@ class CreateBookCommandHandler:
                 "pdf_path": str(pdf_path),
                 "created_at": datetime.now(timezone.utc).isoformat(),
             },
-            "book_map": result["book_map"],
+            "book_map": book_map,
+            "raw_layout_elements": layout_elements,
         }
 
         MapRepository.save_book_map(book_id, map_data)
@@ -57,6 +86,6 @@ class CreateBookCommandHandler:
         return {
             "success": True,
             "book_id": book_id,
-            "title": result["book_map"].get("book_title", "Bilinmiyor"),
+            "title": book_map.get("book_title", "Bilinmiyor"),
             "message": "Kitap başarıyla yüklendi ve haritalandı.",
         }
