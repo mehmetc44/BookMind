@@ -123,12 +123,12 @@ async def upload_pdf(file: UploadFile) -> dict:
     # LangGraph pipeline ile haritalama
     result = await process_pdf(str(pdf_path))
 
-    if not result.get("success"):
+    if not result.get("success") or not result.get("book_map"):
         # PDF'i sil, hata döndür
         pdf_path.unlink(missing_ok=True)
         raise HTTPException(
             status_code=500,
-            detail=result.get("error", "Haritalama sırasında bilinmeyen bir hata oluştu."),
+            detail=result.get("error", "1. Kademe TOC haritası çıkarılamadı (2. Kademe düğümüne geçilecek)."),
         )
 
     # Harita JSON'ını kaydet
