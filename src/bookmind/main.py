@@ -10,12 +10,12 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.requests import Request
 
-from bookmind.api import api_v1_router
-from bookmind.shared import Config
+from bookmind.web.api import api_v1_router
+from bookmind.infrastructure.configuration.settings import Settings
 
 # Dizinleri oluştur
-Config.PDFS_DIR.mkdir(parents=True, exist_ok=True)
-Config.MAPS_DIR.mkdir(parents=True, exist_ok=True)
+Settings.PDFS_DIR.mkdir(parents=True, exist_ok=True)
+Settings.MAPS_DIR.mkdir(parents=True, exist_ok=True)
 
 # FastAPI uygulaması
 app = FastAPI(
@@ -27,10 +27,10 @@ app = FastAPI(
 # V1 API Router'ı bağla
 app.include_router(api_v1_router)
 
-# Static files & Jinja2 templates (BookMind.WebApp)
-WEBAPP_DIR = Path(__file__).resolve().parent / "webapp"
-STATIC_DIR = WEBAPP_DIR / "static"
-TEMPLATE_DIR = WEBAPP_DIR / "templates"
+# Static files & Jinja2 templates (web/ui/)
+UI_DIR = Path(__file__).resolve().parent / "web" / "ui"
+STATIC_DIR = UI_DIR / "static"
+TEMPLATE_DIR = UI_DIR / "templates"
 
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 templates = Jinja2Templates(directory=str(TEMPLATE_DIR))
