@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from bookmind.ai.structure.toc import PDFExtractorService
-from bookmind.ai.parsing.pdf_parser import get_page_count
+from bookmind.ai.services import PDFExtractorService, get_page_count
 from bookmind.workflows.ingestion.state import PDFGraphState
 
 

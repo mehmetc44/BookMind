@@ -1,4 +1,4 @@
-"""ai.parsing.layout_parser — Ham Fiziksel Öğeleri (Başlık, Yazı, Görsel, Tablo, Formül) Etiketleyen 'Gözlemci' Motoru."""
+"""ai.services.layout_parser — Ham Fiziksel Öğeleri (Başlık, Yazı, Görsel, Tablo, Formül) Etiketleyen 'Gözlemci' Motoru."""
 
 from __future__ import annotations
 
@@ -109,7 +109,6 @@ class LayoutParserEngine:
             # 4. Aşama: Metin Bloklarını Doku ve Font Boyutuyla Analiz Et
             text_page_dict = page.get_text("dict")
             for block in text_page_dict.get("blocks", []):
-                # Görsel veya tablo bloklarını atla (sadece metin blokları: type == 0)
                 if block.get("type") != 0:
                     continue
 
@@ -117,7 +116,6 @@ class LayoutParserEngine:
                 if cls._is_inside_any_bbox(block_bbox, table_bboxes):
                     continue
 
-                # Blok içindeki satırları ve font özelliklerini tara
                 block_lines = block.get("lines", [])
                 full_block_text = ""
                 max_font_size = 0.0
@@ -134,7 +132,6 @@ class LayoutParserEngine:
                         if f_size > max_font_size:
                             max_font_size = f_size
 
-                        # flag & 2 => bold flag
                         if (f_flags & 2) != 0 or "bold" in span.get("font", "").lower():
                             has_bold = True
 
@@ -144,7 +141,6 @@ class LayoutParserEngine:
                 if not full_block_text:
                     continue
 
-                # Tür Sınıflandırma Mantığı (Classification Logic)
                 element_type: LayoutElementType = cls._classify_text_block(
                     text=full_block_text,
                     font_size=max_font_size,
@@ -174,28 +170,23 @@ class LayoutParserEngine:
         baseline_font_size: float,
         is_bold: bool,
     ) -> LayoutElementType:
-        """Metin bloğunu font, biçim ve içeriğine göre etiketler."""
         lines = [l.strip() for l in text.split("\n") if l.strip()]
         line_count = len(lines)
         char_count = len(text)
 
-        # 1. Formül Tespiti
         if cls.FORMULA_PATTERNS.search(text) and char_count < 150:
             return "formula"
 
-        # 2. Başlık (Heading) Tespiti: Font boyutu baseline'dan %15 büyükse VEYA kısa & koyu (bold) ise
         is_significantly_larger = font_size >= (baseline_font_size * 1.15)
         is_short_text = line_count <= 2 and char_count < 120
 
         if (is_significantly_larger and is_short_text) or (is_bold and is_short_text and font_size >= baseline_font_size):
             return "heading"
 
-        # 3. Varsayılan: Metin Bloğu (Text)
         return "text"
 
     @classmethod
     def _calculate_baseline_font_size(cls, doc: pymupdf.Document, pages_to_process: int) -> float:
-        """Belgedeki varsayılan gövde (body) metni ortalama font boyutunu hesaplar."""
         font_sizes: list[float] = []
         for i in range(pages_to_process):
             page_dict = doc[i].get_text("dict")
@@ -211,7 +202,6 @@ class LayoutParserEngine:
             return 10.0
 
         font_sizes.sort()
-        # Medyan font boyutu
         mid = len(font_sizes) // 2
         return font_sizes[mid]
 
@@ -222,7 +212,6 @@ class LayoutParserEngine:
         x0, y0, x1, y1 = bbox
         for tb in target_bboxes:
             tx0, ty0, tx1, ty1 = tb
-            # Çakışma veya tamamen kapsanma kontrolü
             if x0 >= tx0 - 2 and y0 >= ty0 - 2 and x1 <= tx1 + 2 and y1 <= ty1 + 2:
                 return True
         return False

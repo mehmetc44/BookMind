@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from bookmind.ai.parsing import LayoutParserEngine
+from bookmind.ai.services import LayoutParserEngine
 from bookmind.workflows.ingestion.state import PDFGraphState
 
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, UploadFile
 
-from bookmind.ai.structure.toc import PDFExtractorService
+from bookmind.ai.services import PDFExtractorService
 from bookmind.application.books.commands.create_book import CreateBookCommandHandler
 from bookmind.infrastructure.configuration.settings import Settings
 
