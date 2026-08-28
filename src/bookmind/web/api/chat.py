@@ -6,7 +6,7 @@ from typing import AsyncGenerator
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 
-from bookmind.ai.generation.llm import ChatAgent
+from bookmind.ai.agents import ChatAgent
 from bookmind.application.qa.ask_book import AskBookQueryHandler
 from bookmind.web.schemas.chat import ChatMessage, ChatResponse
 

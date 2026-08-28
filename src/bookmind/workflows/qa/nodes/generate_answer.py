@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from typing import Any
-from bookmind.ai.generation.llm import ChatAgent
+from bookmind.ai.agents import ChatAgent
 from bookmind.workflows.qa.state import ChatGraphState
 
 

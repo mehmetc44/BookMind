@@ -135,11 +135,12 @@ async function sendChatMessage() {
   chatSendBtn.disabled = true;
 
   try {
-    const response = await fetch('/api/chat', {
+    const response = await fetch('/api/chat/stream', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         message,
+        book_id: currentBookId,
         history: [],
       }),
     });

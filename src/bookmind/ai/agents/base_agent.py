@@ -1,15 +1,12 @@
-"""ai.generation.llm — BaseAgent, ChatAgent, and MapperAgent logic using LangChain."""
+"""ai.agents.base_agent — Base class for all BookMind agents."""
 
 from __future__ import annotations
 
-import json
 import re
-from typing import Any
 from langchain_core.language_models import BaseChatModel
 from langchain_ollama import ChatOllama
 from langchain_openai import ChatOpenAI
 
-from bookmind.domain.books.entities import BookMap
 from bookmind.infrastructure.configuration.settings import Settings, LLMProvider
 
 
@@ -48,6 +45,7 @@ class BaseAgent:
                         "think": False,
                         "keep_alive": "24h",
                     },
+                    streaming=True,
                 )
             else:
                 if not Settings.DEEPSEEK_API_KEY:
@@ -154,78 +152,3 @@ class BaseAgent:
                         continue
                 if not is_thinking:
                     yield content
-
-
-class MapperAgent(BaseAgent):
-    """Ham içindekiler metnini yapılandırılmış BookMap JSON nesnesine dönüştürür."""
-
-    system_prompt: str = (
-        "Sen uzman bir kitap analiz ve haritalama asistanısın. "
-        "Görevin: Verilen ham içindekiler metnini (TOC) analiz edip, kitabın bölüm yapısını "
-        "Pydantic JSON şemasına %100 uygun olarak çıkarmaktır.\n\n"
-        "Şu kurallara KESİNLİKLE uy:\n"
-        "1. Yalnızca geçerli bir JSON nesnesi döndür. Açıklama, markdown kodu veya <think> etiketi EKLEME.\n"
-        "2. Her bölüm için id (örn: chapter_1), title, page_start, page_end, summary (Türkçe 1-2 cümlelik kısa özet), "
-        "topics (3-5 ana konu) ve keywords (3-5 teknik anahtar kelime) alanlarını üret.\n"
-        "3. Yanıtın tam olarak aşağıdaki JSON şemasına uymalıdır:\n"
-        "{\n"
-        '  "book_title": "Kitap Adı",\n'
-        '  "author": "Yazar Adı",\n'
-        '  "total_pages": 100,\n'
-        '  "chapters": [\n'
-        "    {\n"
-        '      "id": "chapter_1",\n'
-        '      "title": "Bölüm Başlığı",\n'
-        '      "page_start": 1,\n'
-        '      "page_end": 15,\n'
-        '      "summary": "Türkçe kısa özet",\n'
-        '      "topics": ["konu1", "konu2"],\n'
-        '      "keywords": ["keyword1", "keyword2"],\n'
-        '      "children": []\n'
-        "    }\n"
-        "  ]\n"
-        "}"
-    )
-
-    async def map(self, toc_text: str, total_pages: int) -> BookMap:
-        """Ham TOC metnini BookMap Pydantic nesnesine dönüştürür."""
-        user_prompt = (
-            f"Toplam Sayfa Sayısı: {total_pages}\n\n"
-            f"HAM İÇİNDEKİLER METNİ:\n{toc_text}\n\n"
-            f"Yukarıdaki metni analiz et ve JSON şemasına uygun haritayı üret."
-        )
-
-        raw_response = await self.ainvoke(user_message=user_prompt)
-        cleaned_json = self._clean_json_string(raw_response)
-
-        try:
-            data = json.loads(cleaned_json)
-            if "total_pages" not in data or data["total_pages"] == 0:
-                data["total_pages"] = total_pages
-            return BookMap.model_validate(data)
-        except Exception as e:
-            raise ValueError(f"MapperAgent JSON çıktısı doğrulanamadı: {e}\nYanıt: {raw_response[:200]}")
-
-    @staticmethod
-    def _clean_json_string(text: str) -> str:
-        text = text.strip()
-        if "```json" in text:
-            text = text.split("```json")[1].split("```")[0]
-        elif "```" in text:
-            text = text.split("```")[1].split("```")[0]
-
-        match = re.search(r"\{.*\}", text, re.DOTALL)
-        if match:
-            return match.group(0)
-        return text.strip()
-
-
-class ChatAgent(BaseAgent):
-    """Kullanıcı sorularını yanıtlayan sohbet ajanı."""
-
-    system_prompt: str = (
-        "Sen BookMind platformunun akıllı kitap asistanısın. "
-        "Kullanıcının sorduğu soruları nazik, açıklayıcı ve doğru bir dille Türkçe yanıtla. "
-        "Eğer sana bir kitap haritası veya bağlam verildiyse, öncelikle o bağlama sadık kalarak cevap ver. "
-        "Yanıtında <think> etiketlerini KESİNLİKLE kullanma, doğrudan nihai yanıtı ver."
-    )

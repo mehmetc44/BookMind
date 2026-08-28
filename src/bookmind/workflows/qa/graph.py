@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any, AsyncGenerator
 from langgraph.graph import END, StateGraph
 
-from bookmind.ai.generation.llm import ChatAgent
+from bookmind.ai.agents import ChatAgent
 from bookmind.workflows.qa.nodes.generate_answer import chat_agent_node
 from bookmind.workflows.qa.state import ChatGraphState
 

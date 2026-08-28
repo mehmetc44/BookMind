@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from bookmind.ai.generation.llm import MapperAgent
+from bookmind.ai.agents import MapperAgent
 from bookmind.workflows.ingestion.state import PDFGraphState
 
 
