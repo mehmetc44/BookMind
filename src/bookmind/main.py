@@ -19,7 +19,7 @@ from bookmind.core.config import Config, LLMProvider
 from bookmind.core.schemas.book import BookInfo
 from bookmind.core.schemas.chat import ChatMessage
 from bookmind.graph import process_pdf, stream_chat_graph
-from bookmind.utils.preview import extract_preview_text
+from bookmind.utils.preview import inspect_pdf_toc
 
 # Paths
 PDFS_DIR = Config.PDFS_DIR
@@ -84,21 +84,21 @@ async def test_page(request: Request) -> HTMLResponse:
 
 @app.post("/api/test-pdf-preview")
 async def test_pdf_preview(file: UploadFile) -> dict:
-    """Yüklenen PDF'in ilk 5 sayfasının çıkarılan metnini test için döndürür."""
+    """Yüklenen PDF'in 1. Kademe gömülü Bookmark/TOC kontrolünü yapar ve sonucunu döndürür."""
     if not file.filename or not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Sadece PDF dosyaları yüklenebilir.")
 
-    # Gecici kaydet
+    # Geçici kaydet
     temp_path = PDFS_DIR / f"temp_preview_{file.filename}"
     content = await file.read()
     temp_path.write_bytes(content)
 
     try:
-        pages_preview = extract_preview_text(temp_path, max_pages=5)
+        inspection = inspect_pdf_toc(temp_path)
         return {
             "success": True,
             "filename": file.filename,
-            "pages": pages_preview
+            **inspection,
         }
     finally:
         if temp_path.exists():

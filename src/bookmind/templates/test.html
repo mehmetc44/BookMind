@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BookMind — PDF Metin Çıkarma Testi (İlk 5 Sayfa)</title>
+    <title>BookMind — PDF Bookmark (TOC) Tespit Laboratuvarı</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
@@ -38,8 +38,79 @@
             font-size: 0.9rem;
             margin-bottom: 24px;
         }
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.88rem;
+            font-weight: 600;
+            margin-bottom: 16px;
+        }
+        .status-badge.success {
+            background: rgba(16, 185, 129, 0.15);
+            color: #10b981;
+            border: 1px solid rgba(16, 185, 129, 0.3);
+        }
+        .status-badge.warning {
+            background: rgba(245, 158, 11, 0.15);
+            color: #f59e0b;
+            border: 1px solid rgba(245, 158, 11, 0.3);
+        }
+        .meta-pills {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+        .meta-pill {
+            background: var(--bg-primary);
+            border: 1px solid var(--surface-border);
+            padding: 6px 14px;
+            border-radius: 8px;
+            font-size: 0.83rem;
+            color: var(--text-secondary);
+        }
+        .meta-pill strong {
+            color: var(--accent-primary);
+        }
+        .toc-tree {
+            border: 1px solid var(--surface-border);
+            border-radius: var(--radius-md);
+            background: var(--bg-primary);
+            padding: 16px;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        .toc-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 12px;
+            margin-bottom: 4px;
+            border-radius: 6px;
+            background: var(--bg-elevated);
+            font-size: 0.88rem;
+            transition: background 0.2s ease;
+        }
+        .toc-item:hover {
+            background: var(--surface-hover);
+        }
+        .toc-level-1 { margin-left: 0px; font-weight: 600; color: var(--text-primary); }
+        .toc-level-2 { margin-left: 20px; font-weight: 500; color: var(--text-secondary); }
+        .toc-level-3 { margin-left: 40px; font-weight: 400; color: var(--text-tertiary); font-size: 0.82rem; }
+        .toc-page {
+            background: var(--bg-primary);
+            border: 1px solid var(--surface-border);
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.78rem;
+            color: var(--accent-primary);
+            font-family: 'Fira Code', monospace;
+        }
         .page-block {
-            margin-top: 24px;
+            margin-top: 16px;
             border: 1px solid var(--surface-border);
             border-radius: var(--radius-md);
             overflow: hidden;
@@ -52,9 +123,6 @@
             font-weight: 600;
             color: var(--accent-primary);
             border-bottom: 1px solid var(--surface-border);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
         }
         .page-content {
             padding: 16px;
@@ -62,9 +130,8 @@
             font-size: 0.82rem;
             line-height: 1.6;
             white-space: pre-wrap;
-            word-break: break-word;
             color: var(--text-primary);
-            max-height: 400px;
+            max-height: 250px;
             overflow-y: auto;
         }
         .back-link {
@@ -88,8 +155,8 @@
     <div class="test-container">
         <a href="/" class="back-link">← Ana Uygulamaya Dön</a>
         <div class="test-card">
-            <h1 class="test-title">PDF Text Extraction Laboratuvarı</h1>
-            <p class="test-desc">Seçeceğiniz PDF dosyasının ilk 5 sayfası PyMuPDF ile ham metne (plain text) dönüştürülüp aşağıda gösterilir.</p>
+            <h1 class="test-title">PDF Bookmark (TOC) Tespit Laboratuvarı 🔍</h1>
+            <p class="test-desc">Yükleyeceğiniz PDF dosyasının 1. Kademe gömülü Bookmark (Yer İmi / İçindekiler) yapısı taranır ve bulunan başlık hiyerarşisi anında listelenir.</p>
 
             <div class="upload-area" id="testUploadArea">
                 <input type="file" id="testFileInput" accept=".pdf" hidden>
@@ -103,8 +170,24 @@
             </div>
 
             <div id="resultsContainer" style="display: none; margin-top: 32px;">
-                <h3 id="resultFilename" style="font-size: 1.1rem; color: var(--text-primary); margin-bottom: 16px;"></h3>
-                <div id="pagesList"></div>
+                <div id="statusBadge" class="status-badge"></div>
+                <h3 id="resultFilename" style="font-size: 1.1rem; color: var(--text-primary); margin-bottom: 12px;"></h3>
+                
+                <div class="meta-pills">
+                    <div class="meta-pill">Toplam Sayfa: <strong id="totalPages">0</strong></div>
+                    <div class="meta-pill">Bookmark Durumu: <strong id="tocStatus">-</strong></div>
+                    <div class="meta-pill">Tespit Edilen Başlık: <strong id="tocCount">0</strong></div>
+                </div>
+
+                <div id="tocTreeContainer">
+                    <h4 style="font-size: 0.95rem; color: var(--text-secondary); margin-bottom: 12px;">📌 Tespit Edilen Bölüm Haritası (TOC)</h4>
+                    <div id="tocTreeList" class="toc-tree"></div>
+                </div>
+
+                <div id="fallbackContainer" style="display: none; margin-top: 24px;">
+                    <h4 style="font-size: 0.95rem; color: var(--text-secondary); margin-bottom: 12px;">📄 İlk Sayfaların Önizleme Metni (Kademe 2/3 Hazırlığı)</h4>
+                    <div id="fallbackPages"></div>
+                </div>
             </div>
         </div>
     </div>
@@ -114,7 +197,7 @@
             <div class="loading-spinner">
                 <div class="spinner-ring"></div>
             </div>
-            <h3 class="loading-title">Metin Çıkarılıyor...</h3>
+            <h3 class="loading-title">Bookmark Yapısı Taranıyor...</h3>
         </div>
     </div>
 
@@ -122,15 +205,22 @@
         const testUploadArea = document.getElementById('testUploadArea');
         const testFileInput = document.getElementById('testFileInput');
         const resultsContainer = document.getElementById('resultsContainer');
+        const statusBadge = document.getElementById('statusBadge');
         const resultFilename = document.getElementById('resultFilename');
-        const pagesList = document.getElementById('pagesList');
+        const totalPages = document.getElementById('totalPages');
+        const tocStatus = document.getElementById('tocStatus');
+        const tocCount = document.getElementById('tocCount');
+        const tocTreeContainer = document.getElementById('tocTreeContainer');
+        const tocTreeList = document.getElementById('tocTreeList');
+        const fallbackContainer = document.getElementById('fallbackContainer');
+        const fallbackPages = document.getElementById('fallbackPages');
         const loadingOverlay = document.getElementById('loadingOverlay');
 
         testUploadArea.addEventListener('click', () => testFileInput.click());
 
         testFileInput.addEventListener('change', (e) => {
             if (e.target.files.length > 0) {
-                runPreview(e.target.files[0]);
+                runInspection(e.target.files[0]);
             }
         });
 
@@ -148,11 +238,11 @@
             e.preventDefault();
             testUploadArea.classList.remove('drag-over');
             if (e.dataTransfer.files.length > 0 && e.dataTransfer.files[0].type === 'application/pdf') {
-                runPreview(e.dataTransfer.files[0]);
+                runInspection(e.dataTransfer.files[0]);
             }
         });
 
-        async function runPreview(file) {
+        async function runInspection(file) {
             loadingOverlay.style.display = 'flex';
             const formData = new FormData();
             formData.append('file', file);
@@ -166,16 +256,44 @@
 
                 if (!res.ok) throw new Error(data.detail || 'İşlem başarısız');
 
-                resultFilename.textContent = '📄 ' + data.filename + ' (İlk 5 Sayfa Çıktısı)';
-                pagesList.innerHTML = data.pages.map(p => `
-                    <div class="page-block">
-                        <div class="page-header">
-                            <span>SAYFA ${p.page_num}</span>
-                            <span style="color: var(--text-tertiary); font-weight: normal;">${p.text.length} Karakter</span>
+                resultFilename.textContent = '📄 ' + data.filename;
+                totalPages.textContent = data.total_pages + ' Sayfa';
+                tocCount.textContent = data.toc_count + ' Başlık';
+
+                if (data.has_toc) {
+                    statusBadge.className = 'status-badge success';
+                    statusBadge.innerHTML = '✓ 1. Kademe Başarılı: Gömülü Bookmark (Yer İmi) Bulundu!';
+                    tocStatus.textContent = 'Mevcut (Gömülü)';
+
+                    tocTreeList.innerHTML = data.toc.map(item => {
+                        const indent = (Math.max(1, item.level) - 1) * 20;
+                        return `
+                        <div class="toc-item" style="margin-left: ${indent}px;">
+                            <span>${escapeHtml(item.title)}</span>
+                            <span class="toc-page">s. ${item.page}</span>
                         </div>
-                        <div class="page-content">${escapeHtml(p.text)}</div>
-                    </div>
-                `).join('');
+                        `;
+                    }).join('');
+
+                    tocTreeContainer.style.display = 'block';
+                    fallbackContainer.style.display = 'none';
+                } else {
+                    statusBadge.className = 'status-badge warning';
+                    statusBadge.innerHTML = '⚠ 1. Kademe Uyarı: Gömülü Bookmark Bulunamadı';
+                    tocStatus.textContent = 'Bulunamadı (2. Kademe Taranacak)';
+
+                    tocTreeContainer.style.display = 'none';
+                    
+                    if (data.preview_pages) {
+                        fallbackPages.innerHTML = data.preview_pages.map(p => `
+                            <div class="page-block">
+                                <div class="page-header">SAYFA ${p.page_num}</div>
+                                <div class="page-content">${escapeHtml(p.text)}</div>
+                            </div>
+                        `).join('');
+                        fallbackContainer.style.display = 'block';
+                    }
+                }
 
                 resultsContainer.style.display = 'block';
             } catch (err) {

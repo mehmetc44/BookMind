@@ -4,16 +4,19 @@ from __future__ import annotations
 
 from bookmind.agents.mapper_agent import MapperAgent
 from bookmind.graph.pdf.state import PDFGraphState
-from bookmind.utils.pdf import extract_toc_text, get_page_count
+from bookmind.services import PDFExtractorService
 from langgraph.graph import END
 
 
 def extract_toc_node(state: PDFGraphState) -> PDFGraphState:
-    """Node 1: PDF'den içindekiler metnini ve sayfa sayısını çeker."""
+    """Node 1: PDFExtractorService aracılığıyla 1. Kademe TOC tespiti yapar."""
     try:
-        toc_text = extract_toc_text(state["pdf_path"])
-        total_pages = get_page_count(state["pdf_path"])
-        return {**state, "toc_text": toc_text, "total_pages": total_pages}
+        inspection = PDFExtractorService.inspect_toc(state["pdf_path"])
+        return {
+            **state,
+            "toc_text": str(inspection.get("toc", [])),
+            "total_pages": inspection.get("total_pages", 0),
+        }
     except Exception as e:
         return {**state, "error": f"PDF okuma hatası: {e!s}"}
 
