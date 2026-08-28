@@ -12,4 +12,5 @@ class PDFGraphState(TypedDict):
     toc_text: str
     total_pages: int
     book_map: dict[str, Any] | None
+    layout_elements: list[dict[str, Any]] | None
     error: str | None

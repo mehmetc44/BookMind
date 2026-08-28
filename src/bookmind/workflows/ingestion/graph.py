@@ -7,6 +7,7 @@ from langgraph.graph import END, StateGraph
 
 from bookmind.workflows.ingestion.nodes.parse_pdf import extract_toc_node
 from bookmind.workflows.ingestion.nodes.extract_structure import map_chapters_node
+from bookmind.workflows.ingestion.nodes.parse_layout import parse_layout_node
 from bookmind.workflows.ingestion.state import PDFGraphState
 
 
@@ -16,8 +17,8 @@ def should_continue(state: PDFGraphState) -> str:
         return END
 
     if not state.get("toc_text") or not state["toc_text"].strip():
-        # Gömülü TOC bulunamazsa orantısız/unstructured pdf noduna yönlendir
-        print("TOC/Bookmark bulunamadı: unstructured_pdf_hierarchy")
+        # Gömülü TOC bulunamazsa ham fiziksel etiketleme noduna yönlendir
+        print("TOC/Bookmark bulunamadı: unstructured_pdf_hierarchy (LayoutParserEngine çalışacak)")
         return "unstructured_pdf_hierarchy"
 
     return "map_chapters"
@@ -35,6 +36,7 @@ class PDFProcessingGraph:
         # Düğümleri ekle
         workflow.add_node("extract_toc", extract_toc_node)
         workflow.add_node("map_chapters", map_chapters_node)
+        workflow.add_node("unstructured_pdf_hierarchy", parse_layout_node)
 
         # Başlangıç noktası
         workflow.set_entry_point("extract_toc")
@@ -45,11 +47,12 @@ class PDFProcessingGraph:
             should_continue,
             {
                 "map_chapters": "map_chapters",
-                "unstructured_pdf_hierarchy": END,
+                "unstructured_pdf_hierarchy": "unstructured_pdf_hierarchy",
             },
         )
 
         workflow.add_edge("map_chapters", END)
+        workflow.add_edge("unstructured_pdf_hierarchy", END)
 
         self._graph = workflow.compile()
         return self._graph
