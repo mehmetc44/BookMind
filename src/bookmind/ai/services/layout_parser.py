@@ -295,6 +295,57 @@ class LayoutParserEngine:
         mid = len(font_sizes) // 2
         return font_sizes[mid]
 
+    @classmethod
+    def extract_toc_from_layout(cls, elements: list[dict[str, Any]]) -> str | None:
+        """Layout etiketlerinde 'İÇİNDEKİLER' veya 'CONTENTS' başlığı taranır. Bulunursa o sayfalardaki TOC metnini döndürür."""
+        toc_page = None
+        toc_keywords = re.compile(r"^(i̇çi̇ndeki̇ler|içindekiler|contents|table of contents|index)\b", re.IGNORECASE)
+
+        for el in elements:
+            # İlk 10 sayfa içinde "İçindekiler" başlığı var mı?
+            if el["page"] <= 10 and el["type"] in ("heading", "text"):
+                clean_txt = el["content"].strip()
+                if toc_keywords.search(clean_txt):
+                    toc_page = el["page"]
+                    break
+
+        if toc_page is None:
+            return None
+
+        # "İçindekiler" sayfasındaki ve takip eden (örn. 2 sayfa süren) TOC metinlerini topla
+        toc_lines: list[str] = []
+        for el in elements:
+            if el["page"] in (toc_page, toc_page + 1) and el["type"] in ("heading", "text"):
+                toc_lines.append(el["content"].strip())
+
+        if toc_lines:
+            return f"İÇİNDEKİLER SAYFASI (Layout Tespiti | Sayfa {toc_page}):\n" + "\n".join(toc_lines)
+
+        return None
+
+    @classmethod
+    def extract_heading_summary(cls, elements: list[dict[str, Any]]) -> str:
+        """Hiç İçindekiler sayfası bulunamayan belgelerde tüm 'heading' etiketlerini LLM haritalaması için özetler."""
+        heading_lines: list[str] = []
+        for el in elements:
+            if el["type"] == "heading":
+                txt = el["content"].strip().replace("\n", " ")
+                heading_lines.append(f"Sayfa {el['page']} [Font {el['font_size']}pt]: {txt}")
+
+        if heading_lines:
+            return "BELGE BAŞLIK HİYERARŞİSİ (Ham Etiketler):\n" + "\n".join(heading_lines)
+
+        # Hiç heading de kalmamışsa ilk paragraflardan üret
+        fallback_lines = []
+        for el in elements:
+            if el["type"] == "text":
+                txt = el["content"].strip().replace("\n", " ")[:80]
+                fallback_lines.append(f"Sayfa {el['page']}: {txt}...")
+                if len(fallback_lines) >= 20:
+                    break
+
+        return "BELGE METİN ÖZETİ:\n" + "\n".join(fallback_lines)
+
     @staticmethod
     def _is_inside_any_bbox(bbox: tuple[float, float, float, float] | None, target_bboxes: list[tuple[float, float, float, float]]) -> bool:
         if not bbox:

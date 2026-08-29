@@ -51,8 +51,8 @@ class PDFProcessingGraph:
             },
         )
 
+        workflow.add_edge("unstructured_pdf_hierarchy", "map_chapters")
         workflow.add_edge("map_chapters", END)
-        workflow.add_edge("unstructured_pdf_hierarchy", END)
 
         self._graph = workflow.compile()
         return self._graph

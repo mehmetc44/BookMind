@@ -22,9 +22,20 @@ def parse_layout_node(state: PDFGraphState) -> PDFGraphState:
 
         print(f"✅ [LayoutParserEngine] Etiketleme tamamlandı! Özet: {type_counts}")
 
+        # Yol 1: 'İÇİNDEKİLER' / 'CONTENTS' sayfası var mı?
+        extracted_toc_text = LayoutParserEngine.extract_toc_from_layout(elements)
+
+        if extracted_toc_text:
+            print("💡 [LayoutParserEngine] Düz metin 'İÇİNDEKİLER' sayfası bulundu ve metin çıkarıldı!")
+            toc_summary = extracted_toc_text
+        else:
+            print("💡 [LayoutParserEngine] 'İÇİNDEKİLER' sayfası yok; tüm 'heading' etiketlerinden hiyerarşi oluşturuluyor...")
+            toc_summary = LayoutParserEngine.extract_heading_summary(elements)
+
         return {
             **state,
             "layout_elements": elements,
+            "toc_text": toc_summary,
         }
     except Exception as e:
         return {
