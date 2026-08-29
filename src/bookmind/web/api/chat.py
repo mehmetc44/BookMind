@@ -15,24 +15,16 @@ router = APIRouter(prefix="/api", tags=["Chat"])
 
 @router.post("/chat", response_model=ChatResponse)
 async def chat(body: ChatMessage) -> ChatResponse:
-    """Sohbet asistanına mesaj gönderir (senkron yanıt)."""
+    """Sohbet asistanına mesaj gönderir (Agentic RAG senkron yanıt)."""
     if not body.message.strip():
         raise HTTPException(status_code=400, detail="Mesaj boş olamaz.")
 
-    from bookmind.ai.rag import RAGService
-
-    # RAG servisi ile hiyerarşik başlık + rerank + 3-chunk bağlamı getir
-    rag_result = RAGService.retrieve_hierarchical_context(
-        query=body.message,
-        book_id=body.book_id,
-    )
-
     agent = ChatAgent()
     try:
-        reply = agent.invoke(
+        reply = await agent.run_agentic(
             user_message=body.message,
+            book_id=body.book_id,
             history=body.history,
-            extra_context=rag_result.get("rag_context"),
         )
         return ChatResponse(success=True, reply=reply)
     except Exception as e:
