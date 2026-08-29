@@ -12,16 +12,16 @@ from bookmind.workflows.ingestion.state import PDFGraphState
 
 
 def should_continue(state: PDFGraphState) -> str:
-    """extract_toc adımından sonra hangi düğüme devam edileceğine karar verir."""
+    """parse_pdf_bookmarks adımından sonra hangi düğüme devam edileceğine karar verir."""
     if state.get("error"):
         return END
 
     if not state.get("toc_text") or not state["toc_text"].strip():
-        # Gömülü TOC bulunamazsa ham fiziksel etiketleme noduna yönlendir
-        print("TOC/Bookmark bulunamadı: unstructured_pdf_hierarchy (LayoutParserEngine çalışacak)")
-        return "unstructured_pdf_hierarchy"
+        print("💡 Bookmark/Hyperlink bulunamadı: 'parse_pdf_layout' düğümüne geçiliyor...")
+        return "parse_pdf_layout"
 
-    return "map_chapters"
+    print("💡 Bookmark/Hyperlink bulundu: 'generate_book_map' düğümüne geçiliyor...")
+    return "generate_book_map"
 
 
 class PDFProcessingGraph:
@@ -33,26 +33,26 @@ class PDFProcessingGraph:
     def build_graph(self) -> Any:
         workflow = StateGraph(PDFGraphState)
 
-        # Düğümleri ekle
-        workflow.add_node("extract_toc", extract_toc_node)
-        workflow.add_node("map_chapters", map_chapters_node)
-        workflow.add_node("unstructured_pdf_hierarchy", parse_layout_node)
+        # Düğümleri ekle (Temiz ve Okunabilir İsimler)
+        workflow.add_node("parse_pdf_bookmarks", extract_toc_node)
+        workflow.add_node("parse_pdf_layout", parse_layout_node)
+        workflow.add_node("generate_book_map", map_chapters_node)
 
         # Başlangıç noktası
-        workflow.set_entry_point("extract_toc")
+        workflow.set_entry_point("parse_pdf_bookmarks")
 
         # Yönlendirme kenarı
         workflow.add_conditional_edges(
-            "extract_toc",
+            "parse_pdf_bookmarks",
             should_continue,
             {
-                "map_chapters": "map_chapters",
-                "unstructured_pdf_hierarchy": "unstructured_pdf_hierarchy",
+                "generate_book_map": "generate_book_map",
+                "parse_pdf_layout": "parse_pdf_layout",
             },
         )
 
-        workflow.add_edge("unstructured_pdf_hierarchy", "map_chapters")
-        workflow.add_edge("map_chapters", END)
+        workflow.add_edge("parse_pdf_layout", "generate_book_map")
+        workflow.add_edge("generate_book_map", END)
 
         self._graph = workflow.compile()
         return self._graph

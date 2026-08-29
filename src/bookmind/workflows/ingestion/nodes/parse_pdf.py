@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from bookmind.ai.services import PDFExtractorService, get_page_count
+from bookmind.ai.services import PDFService
 from bookmind.workflows.ingestion.state import PDFGraphState
 
 
@@ -11,8 +11,8 @@ def extract_toc_node(state: PDFGraphState) -> PDFGraphState:
     pdf_path = state["pdf_path"]
 
     try:
-        total_pages = get_page_count(pdf_path)
-        inspection = PDFExtractorService.inspect_toc(pdf_path)
+        total_pages = PDFService.get_page_count(pdf_path)
+        inspection = PDFService.extract_toc_from_bookmark_hyperlink(pdf_path)
 
         toc_lines = []
         if inspection.get("has_toc") and inspection.get("toc"):

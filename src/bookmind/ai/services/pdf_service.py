@@ -1,4 +1,4 @@
-"""ai.services.pdf_parser — PyMuPDF ham metin okuyucuları ve 1. Kademe Bookmark/TOC tespit servisi."""
+"""ai.services.pdf_service — PDF okuma, bookmark/hyperlink çıkarma ve metin servisleri."""
 
 from __future__ import annotations
 
@@ -10,66 +10,8 @@ import pymupdf
 from bookmind.infrastructure.configuration.settings import Settings
 
 
-def extract_full_text(pdf_path: str | Path, max_pages: int | None = None) -> str:
-    """PDF'den tüm metni çıkarır."""
-    doc = pymupdf.open(str(pdf_path))
-    pages_to_read = max_pages if max_pages else len(doc)
-    pages_to_read = min(pages_to_read, len(doc))
-
-    text_parts: list[str] = []
-    for i in range(pages_to_read):
-        page = doc[i]
-        page_text = page.get_text()
-        if page_text.strip():
-            text_parts.append(f"--- Sayfa {i + 1} ---\n{page_text}")
-
-    doc.close()
-    return "\n\n".join(text_parts)
-
-
-def extract_toc_text(pdf_path: str | Path) -> str:
-    """PDF'den içindekiler bölümünü çıkarmaya çalışır."""
-    doc = pymupdf.open(str(pdf_path))
-
-    toc = doc.get_toc()
-    if toc:
-        toc_lines: list[str] = []
-        for item in toc:
-            level = item[0] if len(item) > 0 else 1
-            title = str(item[1]).strip() if len(item) > 1 else "Bölüm"
-            page_num = item[2] if len(item) > 2 and isinstance(item[2], int) else 1
-            indent = "  " * (level - 1)
-            toc_lines.append(f"{indent}{title} ..... sayfa {page_num}")
-        doc.close()
-        return "İÇİNDEKİLER (PDF metadata):\n" + "\n".join(toc_lines)
-
-    total_pages = len(doc)
-    scan_pages = min(Settings.TOC_SCAN_PAGES, total_pages)
-    text_parts: list[str] = []
-    for i in range(scan_pages):
-        page = doc[i]
-        page_text = page.get_text()
-        if page_text.strip():
-            text_parts.append(f"--- Sayfa {i + 1} ---\n{page_text}")
-
-    doc.close()
-
-    return (
-        f"İÇİNDEKİLER BULUNAMADI. İlk {scan_pages} sayfanın metni:\n"
-        + "\n\n".join(text_parts)
-    )
-
-
-def get_page_count(pdf_path: str | Path) -> int:
-    """PDF'deki toplam sayfa sayısını döndürür."""
-    doc = pymupdf.open(str(pdf_path))
-    count = len(doc)
-    doc.close()
-    return count
-
-
-class PDFExtractorService:
-    """PDF İçindekiler ve Köprü Çıkarım Servisi (1. Kademe Akıllı Taramalar)."""
+class PDFService:
+    """PDF belgesi ile ilgili düşük seviyeli I/O işlemlerini ve 1. Kademe Bookmark/Hyperlink taramalarını yöneten servis."""
 
     EXCLUDE_PATTERNS = re.compile(
         r"^(bkz|bakınız|see|table|tablo|şekil|figure|fig\.|http|www|sayfa|page|ek\b)",
@@ -77,8 +19,66 @@ class PDFExtractorService:
     )
 
     @classmethod
-    def inspect_toc(cls, pdf_path: str | Path) -> dict[str, Any]:
-        """PDF dosyasının 1. Kademe gömülü Bookmark ve Köprü yapısını inceler."""
+    def extract_full_text(cls, pdf_path: str | Path, max_pages: int | None = None) -> str:
+        """PDF'den tüm metni çıkarır."""
+        doc = pymupdf.open(str(pdf_path))
+        pages_to_read = max_pages if max_pages else len(doc)
+        pages_to_read = min(pages_to_read, len(doc))
+
+        text_parts: list[str] = []
+        for i in range(pages_to_read):
+            page = doc[i]
+            page_text = page.get_text()
+            if page_text.strip():
+                text_parts.append(f"--- Sayfa {i + 1} ---\n{page_text}")
+
+        doc.close()
+        return "\n\n".join(text_parts)
+
+    @classmethod
+    def extract_toc_from_full_text(cls, pdf_path: str | Path) -> str:
+        """PDF'den ham metin okuyarak içindekiler bölümünü çıkarmaya çalışır."""
+        doc = pymupdf.open(str(pdf_path))
+
+        toc = doc.get_toc()
+        if toc:
+            toc_lines: list[str] = []
+            for item in toc:
+                level = item[0] if len(item) > 0 else 1
+                title = str(item[1]).strip() if len(item) > 1 else "Bölüm"
+                page_num = item[2] if len(item) > 2 and isinstance(item[2], int) else 1
+                indent = "  " * (level - 1)
+                toc_lines.append(f"{indent}{title} ..... sayfa {page_num}")
+            doc.close()
+            return "İÇİNDEKİLER (PDF metadata):\n" + "\n".join(toc_lines)
+
+        total_pages = len(doc)
+        scan_pages = min(Settings.TOC_SCAN_PAGES, total_pages)
+        text_parts: list[str] = []
+        for i in range(scan_pages):
+            page = doc[i]
+            page_text = page.get_text()
+            if page_text.strip():
+                text_parts.append(f"--- Sayfa {i + 1} ---\n{page_text}")
+
+        doc.close()
+
+        return (
+            f"İÇİNDEKİLER BULUNAMADI. İlk {scan_pages} sayfanın metni:\n"
+            + "\n\n".join(text_parts)
+        )
+
+    @classmethod
+    def get_page_count(cls, pdf_path: str | Path) -> int:
+        """PDF'deki toplam sayfa sayısını döndürür."""
+        doc = pymupdf.open(str(pdf_path))
+        count = len(doc)
+        doc.close()
+        return count
+
+    @classmethod
+    def extract_toc_from_bookmark_hyperlink(cls, pdf_path: str | Path) -> dict[str, Any]:
+        """PDF dosyasının 1. Kademe gömülü Bookmark ve Köprü (Hyperlink) yapısını inceler."""
         doc = pymupdf.open(str(pdf_path))
         total_pages = len(doc)
         raw_toc = doc.get_toc()
@@ -161,5 +161,5 @@ class PDFExtractorService:
             "toc_count": 0,
             "toc": [],
             "preview_pages": preview_pages,
-            "message": "Bu PDF dosyasında yerleşik (gömülü) Bookmark / İçindekiler tablosu bulunamadı. (Sistem Kademe 2: Metin/LLM taramasına geçecek).",
+            "message": "Bu PDF dosyasında yerleşik (gömülü) Bookmark / İçindekiler tablosu bulunamadı.",
         }

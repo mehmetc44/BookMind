@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, UploadFile
 
-from bookmind.ai.services import PDFExtractorService
+from bookmind.ai.services import PDFService
 from bookmind.application.books.commands.create_book import CreateBookCommandHandler
 from bookmind.infrastructure.configuration.settings import Settings
 
@@ -28,7 +28,7 @@ async def test_pdf_preview(file: UploadFile) -> dict:
     temp_path.write_bytes(content)
 
     try:
-        inspection = PDFExtractorService.inspect_toc(temp_path)
+        inspection = PDFService.extract_toc_from_bookmark_hyperlink(temp_path)
         return {
             "success": True,
             "filename": file.filename,

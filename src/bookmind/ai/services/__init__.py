@@ -1,13 +1,10 @@
-"""ai.services package — Low-level PDF parsers and Layout Observation Services."""
+"""ai.services package — PDF Services and Layout Observation Engines."""
 
 from bookmind.ai.services.layout_parser import LayoutElement, LayoutParserEngine
-from bookmind.ai.services.pdf_parser import PDFExtractorService, extract_full_text, extract_toc_text, get_page_count
+from bookmind.ai.services.pdf_service import PDFService
 
 __all__ = [
     "LayoutElement",
     "LayoutParserEngine",
-    "PDFExtractorService",
-    "extract_full_text",
-    "extract_toc_text",
-    "get_page_count",
+    "PDFService",
 ]
