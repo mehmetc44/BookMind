@@ -90,11 +90,71 @@ class ChatAgent(BaseAgent):
         user_message: str,
         book_id: str | None = None,
         history: list[dict[str, str]] | None = None,
+        max_turns: int = 5,
     ) -> AsyncGenerator[str, None]:
-        """Canlı streaming destekli Agentic RAG çalıştırıcı."""
-        full_reply = await self.run_agentic(
-            user_message=user_message,
-            book_id=book_id,
-            history=history,
-        )
-        yield full_reply
+        """Canlı token-by-token streaming destekli Agentic RAG çalıştırıcı."""
+        try:
+            llm_with_tools = self.llm.bind_tools(self.tools)
+        except Exception:
+            llm_with_tools = self.llm
+
+        system_text = self.system_prompt
+        if book_id:
+            system_text += f"\n\nAKTİF KİTAP ID: {book_id}"
+
+        messages: list[Any] = [SystemMessage(content=system_text)]
+
+        if history:
+            for h in history:
+                role = h.get("role", "user")
+                content = h.get("content", "")
+                if role == "user":
+                    messages.append(HumanMessage(content=content))
+                elif role == "assistant":
+                    messages.append(AIMessage(content=content))
+
+        messages.append(HumanMessage(content=user_message))
+
+        for turn in range(max_turns):
+            response = await llm_with_tools.ainvoke(messages)
+            tool_calls = getattr(response, "tool_calls", [])
+
+            if not tool_calls:
+                # Tool çağrısı yoksa, doğrudan yanıt üretilmiş olur. Token token yayınla.
+                content = self._clean_response(str(response.content))
+                if content:
+                    yield content
+                return
+
+            messages.append(response)
+            for tool_call in tool_calls:
+                tool_name = tool_call.get("name")
+                tool_args = tool_call.get("args", {})
+                tool_call_id = tool_call.get("id", f"call_{turn}")
+
+                if "book_id" in tool_args and not tool_args["book_id"] and book_id:
+                    tool_args["book_id"] = book_id
+                elif "book_id" not in tool_args and book_id:
+                    tool_args["book_id"] = book_id
+
+                print(f"🛠️ [ChatAgent Agentic Stream Tool Call] Tool: '{tool_name}', Args: {tool_args}")
+
+                target_tool = self._tools_map.get(tool_name)
+                if target_tool:
+                    tool_output = target_tool.invoke(tool_args)
+                else:
+                    tool_output = f"Tool '{tool_name}' bulunamadı."
+
+                messages.append(
+                    ToolMessage(
+                        content=str(tool_output),
+                        tool_call_id=tool_call_id,
+                        name=tool_name,
+                    )
+                )
+
+        # Tool çağrıları tamamlandıktan sonra nihai cevabı canlı streaming ile akıt
+        async for chunk in llm_with_tools.astream(messages):
+            content = str(chunk.content)
+            if content:
+                yield content

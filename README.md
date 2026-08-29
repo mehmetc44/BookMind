@@ -1,110 +1,103 @@
-# BookMind 📚⚡
+# BookMind 📚⚡ — SaaS-Ready AI Kitap Haritalama ve Agentic RAG Platformu
 
-**BookMind** is a State-of-the-Art (SOTA) AI-powered book analysis, structural layout extraction, and interactive chat assistant built with **FastAPI**, **LangGraph**, **PyMuPDF**, **ChromaDB**, and **Ollama / DeepSeek LLMs**.
+**BookMind**, karmaşık PDF belgelerini ve kitapları otomatik analiz ederek hiyerarşik haritalarını (`BookMap`) çıkaran, verileri vektörleştirip saklayan ve **Agentic RAG (Tool-Based RAG)** mimarisi ile kullanıcıların kitaplarla etkileşimli sohbet etmesini sağlayan SaaS ölçeğinde hazırlanmış State-of-the-Art (SOTA) bir yapay zeka platformudur.
 
 ---
 
-## 🏛️ Enterprise Clean Architecture & DDD Structure
+## 🌟 Öne Çıkan Yetenekler ve Mimari (Key Features)
 
-BookMind is structured following strict Domain-Driven Design (DDD) and Clean Architecture principles:
+### 1. 🔀 SOTA Hybrid Ingestion Pipeline (LangGraph 0-LLM / LLM Akıllı Yönlendirici)
+PDF yüklendiğinde işletilen 4 aşamalı iş akış hattı (Ingestion Workflow):
+- **1. Yol (Gömülü Bookmark / Yer İmleri - 0 LLM ÇAĞRISI)**: PDF sidebar yer imlerini ve iç köprülerini anında süzerek 0 maliyetle hiyerarşiyi çıkarır.
+- **2. Yol (Fiziki İçindekiler Sayfası - 0 LLM ÇAĞRISI)**: Basılı "İÇİNDEKİLER" / "TABLE OF CONTENTS" sayfalarını etiketleyip ayıklar.
+- **3. Yol (Düzensiz PDF Layout Parser - Akıllı LLM)**: Başlık boyutu (`font-size`), kalınlık (`is_bold`), koordinat (`bbox`) ve görsel/tablo analizleriyle hiyerarşiyi oluşturur.
+
+### 2. 🗃️ Çift Veritabanı Mimarisi (SQLite + ChromaDB)
+- **SQLite Relational DB**: 250 kelimelik metin parçalarını (chunks), sayfa aralıklarını ve **iki yönlü bağlı liste (`prev_chunk_id`, `next_chunk_id`)** ilişkilerini saklar.
+- **ChromaDB Vector DB**: Metin parçalarını ve hiyerarşik bölüm başlıklarını `intfloat/multilingual-e5-base` modeli ile 768-boyutlu vektörlere dönüştürerek indeksler.
+
+### 3. 🎯 Hiyerarşik RAG & Re-Ranking Motoru
+- **Vektör Benzerliği ile Başlık Seçimi**: Kullanıcı sorgusu geldiğinde ilk olarak kitabın hiyerarşik bölüm başlıkları arasından en alakalı bölüm (`chapter_id`) seçilir.
+- **Cross-Encoder Re-Ranking**: Seçilen bölüm altındaki chunk'lar `cross-encoder/ms-marco-MiniLM-L-6-v2` modeli ile sorguya göre yeniden puanlanır.
+- **3-Chunk Genişletilmiş Bağlam**: En yüksek skorlu chunk'ın **bir öncesi + kendisi + bir sonrası** birleştirilerek anlamsal bütünlüğü bozulmamış bağlam penceresi (`expanded context`) elde edilir.
+
+### 4. 🤖 Agentic RAG Sohbet Asistanı (LangChain Tool Calling & DeepSeek)
+- **Dinamik Tool Kullanımı (`search_book_context`)**: Model kullanıcı mesajını analiz eder; genel sohbetlerde veritabanı araması yapmaz, kitap sorularında ise `search_book_context` aracını çalıştırır.
+- **Çok Adımlı Arama (Multi-Step Retrieval)**: Karmaşık sorularda model farklı arama terimleriyle aracı birden fazla kez çağırıp farklı bölümlerdeki bağlamları sentezleyebilir.
+- **Canlı Streaming**: DeepSeek (`deepseek-chat`) ve Ollama modelleri üzerinden kelime kelime (token-by-token) canlı akış yanıtı üretir.
+
+### 5. 🔬 İnteraktif Test Laboratuvarı (`/test`)
+- PDF bookmark yapısını ve 0 LLM / LLM teşhislerini anında test imkanı.
+- Sorgu girdiğinizde vektör benzerliği ile seçilen başlığı, Cross-Encoder 1. olan target chunk'ı ve Chat modeline beslenen 3'lü birleştirilmiş chunk parçalarını anında gösteren RAG laboratuvarı.
+
+---
+
+## 🏛️ Clean Architecture & DDD Proje Yapısı
+
+BookMind, kurumsal SaaS standartlarında Clean Architecture ve Domain-Driven Design (DDD) prensipleriyle geliştirilmiştir:
 
 ```text
 src/bookmind/
 │
-├── domain/                  # 🧠 1. DOMAIN LAYER (Pure Business Entities & Exceptions)
-│   ├── books/               # BookInfo, BookMap, Chapter Entities
-│   └── common/              # Custom Domain Exceptions
+├── domain/                  # 🧠 1. DOMAIN LAYER (Saf İş Modelleri ve Entitiler)
+│   ├── books/               # BookInfo, BookMap, Chapter Nesneleri
+│   └── common/              # Özel Domain İstisnaları (Exceptions)
 │
-├── application/             # ⚙️ 2. APPLICATION LAYER (CQRS Use Cases, Commands & Queries)
-│   ├── books/               # CreateBook, DeleteBook, ListBooks, GetBook Handlers
+├── application/             # ⚙️ 2. APPLICATION LAYER (CQRS Use Case'ler)
+│   ├── books/               # CreateBook, DeleteBook, ListBooks, GetBook İşleyicileri
 │   └── qa/                  # AskBook Streaming Query Handler
 │
-├── ai/                      # 🤖 3. AI CORE LAYER (Agents, Prompts & PDF Services)
+├── ai/                      # 🤖 3. AI CORE LAYER (Agentic RAG, Tools & Prompts)
 │   ├── agents/              # BaseAgent, ChatAgent, HierarchyExtractorAgent
-│   ├── prompts/             # System Prompts (chat_agent_prompt.py, hierarchy_extractor_prompt.py)
-│   └── services/            # pdf_service.py (TOC/Bookmark Reader) & layout_parser.py (Observer Motor)
+│   ├── tools/               # search_book_context LangChain Tool Wrappers
+│   ├── rag/                 # RAGService, Embedder (e5-base), CrossEncoder (ms-marco)
+│   ├── prompts/             # System Prompts (chat_agent_prompt.py)
+│   └── services/            # ChunkingService, PDFService, LayoutParser Engine
 │
-├── workflows/               # 🔀 4. WORKFLOWS LAYER (LangGraph Orchestration Pipelines)
-│   ├── ingestion/           # 4-Node 0-LLM / LLM Ingestion Graph
-│   └── qa/                  # Real-Time QA Streaming Graph
+├── workflows/               # 🔀 4. WORKFLOWS LAYER (LangGraph Orkestrasyonu)
+│   ├── ingestion/           # PDF İşleme ve Haritalama LangGraph Akışı
+│   └── qa/                  # Agentic QA Chat LangGraph Akışı
 │
-├── infrastructure/          # 🔌 5. INFRASTRUCTURE LAYER (File Services & Configuration)
-│   ├── configuration/       # Settings & LLMProvider (.env Config)
-│   └── services/            # file/pdf_file_service.py (JSON Map & Document Persistence)
+├── infrastructure/          # 🔌 5. INFRASTRUCTURE LAYER (Veritabanları ve Konfigürasyon)
+│   ├── configuration/       # Settings & LLMProvider (.env Yönetimi)
+│   └── services/            # SQLiteService, VectorService (ChromaDB), PDFFileService
 │
 └── web/                     # 🌐 6. WEB PRESENTATION LAYER (FastAPI API & UI)
-    ├── api/                 # Endpoint Controllers (/api/books, /api/documents, /api/chat)
-    ├── dtos/                # Request/Response Pydantic DTOs (ChatMessage, ChatResponse)
-    └── ui/                  # Jinja2 Templates & Static Assets (CSS/JS)
+    ├── api/                 # REST Endpoints (/api/books, /api/chat, /api/chat/test-rag)
+    ├── dtos/                # Request/Response Pydantic Şemaları
+    └── ui/                  # Web Arayüzü (Jinja2 Templates & Static Assetler)
 ```
 
 ---
 
-## 📐 Ingestion Pipeline Flow (SOTA 0-LLM / LLM Smart Router)
+## 🚀 Hızlı Başlangıç (Quick Start)
 
-```text
-                       [ PDF Yüklenir ]
-                              │
-                              ▼
-            [1. Düğüm: label_pdf_layout]           <-- (Fiziki Etiketleme Label)
-                              │
-                              ▼
-            [2. Düğüm: check_toc_type]             <-- (İçindekiler Checker)
-                              │
-      ┌───────────────────────┼───────────────────────┐
-      │                       │                       │
- 🟢 1. YOL (BM Var)     🟡 2. YOL (Basılı TOC)   🔴 3. YOL (Düzensiz)
- (0 LLM ÇAĞRISI)         (0 LLM ÇAĞRISI)        (YALNIZCA BURADA LLM)
-      │                       │                       │
-      ▼                       ▼                       ▼
-  [Direkt Geçiş]        [3A. Düğüm:             [3B. Düğüm:
-                         extract_toc_page]       map_unstructured_layout]
-      │                       │                       │
-      └───────────────────────┼───────────────────────┘
-                              ▼
-            [4. Düğüm: build_hierarchy_list]       <-- (HierarchyExtractorAgent LLM)
-```
-
----
-
-## ⚡ Key Features
-
-- **SOTA Hybrid Layout Engine ("Gözlemci" Motoru)**: 
-  - **1. Level (Embedded Bookmarks/Hyperlinks - 0 LLM)**: Instantly extracts sidebar outlines and internal links with 3 smart filters.
-  - **2. Level (Physical TOC Parser - 0 LLM)**: Directly extracts printed "İÇİNDEKİLER" / "CONTENTS" pages into structured chapters.
-  - **3. Level (Fallback Physical Layout Parsing & Aggregator)**: Parses unstructured PDFs using font sizes, boldness (`is_bold`), bounding box coordinates (`bbox`), images, tables (`page.find_tables()`), and mathematical formulas. Includes rule-based split heading merging and pseudo-heading filtering.
-- **HierarchyExtractorAgent**: Specialized LLM agent invoked **ONLY for unstructured PDFs** to construct pristine nested `BookMap` trees specifically from header-tagged elements.
-- **Fast Real-Time Streaming Chat**: Token-by-token streaming (TTFT ~1.0s) powered by local Ollama (`qwen3.5:4b`) or Cloud DeepSeek APIs.
-- **DDD & CQRS Clean Architecture**: Zero circular dependencies, isolated DTOs, file persistence services, and clear separation of concerns.
-
----
-
-## 🚀 Quick Start
-
-### 1. Install Dependencies
+### 1. Bağımlılıkları Yükleyin
 ```bash
 uv sync
 ```
 
-### 2. Configure Environment
-Set provider and parameters in `.env`:
+### 2. Konfigürasyonu Ayarlayın
+`.env` dosyasından LLM sağlayıcınızı (`deepseek` veya `ollama`) ve API anahtarlarınızı seçin:
 ```env
-LLM_PROVIDER=ollama
-OLLAMA_MODEL=qwen3.5:4b
-OLLAMA_BASE_URL=http://localhost:11434
+LLM_PROVIDER=deepseek
+DEEPSEEK_API_KEY=sk-your-api-key
+DEEPSEEK_BASE_URL=https://api.deepseek.com
+DEEPSEEK_DEFAULT_MODEL=deepseek-chat
 ```
 
-### 3. Run Application
+### 3. Uygulamayı Başlatın
 ```bash
 uv run bookmind
 ```
-Open `http://localhost:8000` in your browser.
+Tarayıcınızdan `http://localhost:8000` adresini açarak uygulamayı kullanmaya başlayabilirsiniz!
+Test laboratuvarı için: `http://localhost:8000/test`
 
 ---
 
-## 🧪 Verification
+## 💼 SaaS Ticari Potansiyel (SaaS Readiness)
 
-Run python compilation and route checks:
-```bash
-uv run python -c "from bookmind.main import app; print('App Loaded!')"
-```
+BookMind altyapısı aşağıdaki SaaS iş modellerine doğrudan dönüştürülebilir durumdadır:
+- **Akıllı PDF & Kitap İnceleme Platformu (B2C SaaS)**: Öğrenciler, araştırmacılar ve akademisyenler için PDF kitap analizi ve soru-cevap servisi.
+- **Kurumsal Belge Arama ve Bilgi Yönetimi (B2B Enterprise RAG)**: Şirket içi dokümanların, teknik el kitaplarının ve mevzuatların vektörleştirilerek akıllı aranması.
+- **API-as-a-Service**: PDF Haritalama ve Agentic RAG uç noktalarının diğer yazılımlara REST API olarak sunulması.
