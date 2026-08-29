@@ -19,21 +19,20 @@ async def chat(body: ChatMessage) -> ChatResponse:
     if not body.message.strip():
         raise HTTPException(status_code=400, detail="Mesaj boş olamaz.")
 
-    # Eğer kitap bağlamı varsa haritayı çekip extra_context olarak ekle
-    extra_context = None
-    if body.book_id:
-        from bookmind.infrastructure.services import PDFFileService
+    from bookmind.ai.rag import RAGService
 
-        map_data = PDFFileService.get_book_map(body.book_id)
-        if map_data and "book_map" in map_data:
-            extra_context = f"AKTİF KİTAP HARİTASI BILGILERI:\n{map_data['book_map']}"
+    # RAG servisi ile hiyerarşik başlık + rerank + 3-chunk bağlamı getir
+    rag_result = RAGService.retrieve_hierarchical_context(
+        query=body.message,
+        book_id=body.book_id,
+    )
 
     agent = ChatAgent()
     try:
         reply = agent.invoke(
             user_message=body.message,
             history=body.history,
-            extra_context=extra_context,
+            extra_context=rag_result.get("rag_context"),
         )
         return ChatResponse(success=True, reply=reply)
     except Exception as e:
@@ -55,3 +54,28 @@ async def chat_stream(body: ChatMessage) -> StreamingResponse:
             yield chunk
 
     return StreamingResponse(event_generator(), media_type="text/plain; charset=utf-8")
+
+
+@router.post("/chat/test-rag")
+async def test_rag_endpoint(body: ChatMessage) -> dict:
+    """RAG sistemini test etmek için: LLM çağrısı olmadan sadece Vektör Başlık seçimi, Re-Rank ve 3-chunk bağlamını anında döndürür."""
+    if not body.message.strip():
+        raise HTTPException(status_code=400, detail="Mesaj boş olamaz.")
+
+    from bookmind.ai.rag import RAGService
+
+    # Sadece Hiyerarşik RAG Arama (0 LLM çağrısı, anında yanıt)
+    rag_result = RAGService.retrieve_hierarchical_context(
+        query=body.message,
+        book_id=body.book_id,
+    )
+
+    return {
+        "success": True,
+        "query": body.message,
+        "book_id": body.book_id,
+        "selected_title": rag_result.get("selected_title"),
+        "target_chunk_id": rag_result.get("target_chunk_id"),
+        "expanded_text": rag_result.get("expanded_text"),
+        "rag_context": rag_result.get("rag_context"),
+    }

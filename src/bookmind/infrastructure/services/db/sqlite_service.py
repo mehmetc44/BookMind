@@ -95,6 +95,38 @@ class SQLiteService:
             return dict(row) if row else None
 
     @classmethod
+    def get_chunks_by_chapter(cls, chapter_id: str, book_id: str | None = None) -> list[dict[str, Any]]:
+        """Verilen chapter_id (ve isteğe bağlı book_id) altındaki tüm chunk'ları getirir."""
+        cls.init_db()
+        with cls._get_connection() as conn:
+            cursor = conn.cursor()
+            if book_id:
+                cursor.execute(
+                    "SELECT * FROM chunks WHERE chapter_id = ? AND book_id = ? ORDER BY page_start, chunk_id",
+                    (chapter_id, book_id),
+                )
+            else:
+                cursor.execute(
+                    "SELECT * FROM chunks WHERE chapter_id = ? ORDER BY page_start, chunk_id",
+                    (chapter_id,),
+                )
+            rows = cursor.fetchall()
+            return [dict(r) for r in rows]
+
+    @classmethod
+    def get_all_book_chunks(cls, book_id: str) -> list[dict[str, Any]]:
+        """Bir kitaba ait tüm chunk'ları getirir."""
+        cls.init_db()
+        with cls._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT * FROM chunks WHERE book_id = ? ORDER BY page_start, chunk_id",
+                (book_id,),
+            )
+            rows = cursor.fetchall()
+            return [dict(r) for r in rows]
+
+    @classmethod
     def get_expanded_context(cls, target_chunk_id: str) -> dict[str, Any]:
         """Hedef chunk_id'yi bulur ve komşuları (Önceki + Hedef + Sonraki) birleştirerek genişletilmiş anlamsal metni döndürür."""
         target_chunk = cls.get_chunk(target_chunk_id)

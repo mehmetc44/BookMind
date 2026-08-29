@@ -38,6 +38,20 @@ async def chunk_and_embed_node(state: PDFGraphState) -> PDFGraphState:
             # 3. ChromaDB Vektör Veritabanına Vektörleri ve Metadataları Kaydet
             print(f"🧬 [5. Chunk & Embed] {len(flat_chunks)} chunk ChromaDB (multilingual-e5-base) vektör veritabanına indeksleniyor...")
             VectorService.add_chunks(flat_chunks)
+
+            # 3.1. Hiyerarşik Bölüm Başlıklarını ChromaDB 'book_titles' Koleksiyonuna İndeksle
+            def collect_all_chapters(chapters_list: list[dict[str, Any]]) -> list[dict[str, Any]]:
+                result = []
+                for item in chapters_list:
+                    result.append(item)
+                    if item.get("children"):
+                        result.extend(collect_all_chapters(item["children"]))
+                return result
+
+            all_chapters = collect_all_chapters(updated_book_map.get("chapters", []))
+            if all_chapters:
+                print(f"📌 [5. Chunk & Embed] {len(all_chapters)} hiyerarşik başlık ChromaDB (book_titles) koleksiyonuna indeksleniyor...")
+                VectorService.add_titles(book_id=book_id, titles=all_chapters)
         else:
             print("  ⚠️ Uyarı: Bölümlerden metin çıkarılamadı veya chunk üretilemedi.")
 

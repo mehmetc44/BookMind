@@ -14,6 +14,7 @@ class VectorService:
 
     _client: chromadb.PersistentClient | None = None
     _collection: Any = None
+    _titles_collection: Any = None
 
     @classmethod
     def get_client(cls) -> chromadb.PersistentClient:
@@ -36,6 +37,91 @@ class VectorService:
                 metadata={"hnsw:space": "cosine"},
             )
         return cls._collection
+
+    @classmethod
+    def get_titles_collection(cls) -> Any:
+        """'book_titles' hiyerarşik başlık koleksiyonunu getirir veya oluşturur."""
+        if cls._titles_collection is None:
+            client = cls.get_client()
+            cls._titles_collection = client.get_or_create_collection(
+                name="book_titles",
+                metadata={"hnsw:space": "cosine"},
+            )
+        return cls._titles_collection
+
+    @classmethod
+    def add_titles(cls, book_id: str, titles: list[dict[str, Any]]) -> int:
+        """Hiyerarşik bölüm başlıklarını ChromaDB 'book_titles' koleksiyonuna ekler."""
+        if not titles:
+            return 0
+
+        collection = cls.get_titles_collection()
+
+        ids: list[str] = []
+        documents: list[str] = []
+        metadatas: list[dict[str, Any]] = []
+
+        for idx, t in enumerate(titles):
+            chapter_id = t.get("id") or t.get("chapter_id") or f"ch_{idx}"
+            title_text = t.get("title", "")
+            summary = t.get("summary", "")
+            topics = ", ".join(t.get("topics", [])) if isinstance(t.get("topics"), list) else ""
+
+            doc_text = f"Başlık: {title_text}"
+            if summary:
+                doc_text += f"\nÖzet: {summary}"
+            if topics:
+                doc_text += f"\nKonular: {topics}"
+
+            doc_id = f"{book_id}_{chapter_id}"
+            ids.append(doc_id)
+            documents.append(doc_text)
+            metadatas.append({
+                "book_id": book_id,
+                "chapter_id": chapter_id,
+                "title": title_text,
+            })
+
+        collection.add(
+            ids=ids,
+            documents=documents,
+            metadatas=metadatas,
+        )
+        return len(ids)
+
+    @classmethod
+    def search_similar_title(
+        cls,
+        query: str,
+        book_id: str | None = None,
+    ) -> dict[str, Any] | None:
+        """Vektör benzerliği ile kullanıcının sorusuna en yakın hiyerarşik başlığı bulur."""
+        collection = cls.get_titles_collection()
+        where_clause = {"book_id": book_id} if book_id else None
+
+        try:
+            results = collection.query(
+                query_texts=[query],
+                n_results=1,
+                where=where_clause,
+            )
+
+            if results and results.get("ids") and len(results["ids"]) > 0 and len(results["ids"][0]) > 0:
+                chapter_id = results["metadatas"][0][0].get("chapter_id")
+                title = results["metadatas"][0][0].get("title")
+                doc = results["documents"][0][0] if results.get("documents") else ""
+                dist = results["distances"][0][0] if results.get("distances") else 0.0
+
+                return {
+                    "chapter_id": chapter_id,
+                    "title": title,
+                    "document": doc,
+                    "distance": dist,
+                }
+        except Exception as e:
+            print(f"⚠️ [VectorService] Başlık arama hatası: {e}")
+
+        return None
 
     @classmethod
     def add_chunks(cls, chunks: list[dict[str, Any]]) -> int:
@@ -109,5 +195,10 @@ class VectorService:
         try:
             collection = cls.get_collection()
             collection.delete(where={"book_id": book_id})
+        except Exception:
+            pass
+        try:
+            titles_col = cls.get_titles_collection()
+            titles_col.delete(where={"book_id": book_id})
         except Exception:
             pass

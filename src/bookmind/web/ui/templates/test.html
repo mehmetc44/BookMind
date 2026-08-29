@@ -190,6 +190,32 @@
                 </div>
             </div>
         </div>
+
+        <!-- HİYERARŞİK RAG & 3-CHUNK TEST KARTI -->
+        <div class="test-card" style="margin-top: 32px;">
+            <h2 class="test-title">⚡ Hiyerarşik RAG Vektör & 3-Chunk Bağlam Laboratuvarı</h2>
+            <p class="test-desc">LLM çağrısı olmadan (anında yanıt): Sorgunuz vektöre dönüştürülür, en benzer hiyerarşik başlık seçilir, Cross-Encoder ile re-rank yapılır ve chat modeline gidecek <strong>3'lü birleştirilmiş chunk parçaları (Önceki + Hedef + Sonraki)</strong> listelenir.</p>
+
+            <div style="display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;">
+                <select id="ragBookSelect" style="flex: 1; min-width: 200px; padding: 12px; background: var(--bg-primary); border: 1px solid var(--surface-border); border-radius: var(--radius-md); color: var(--text-primary); font-size: 0.9rem;">
+                    <option value="">📚 Kitap Seçiniz (Tüm Kitaplar / Otomatik)</option>
+                </select>
+                <input type="text" id="ragQueryInput" placeholder="Sorgunuzu yazın (Örn: Vektör arama nasıl çalışır?)..." style="flex: 3; min-width: 250px; padding: 12px; background: var(--bg-primary); border: 1px solid var(--surface-border); border-radius: var(--radius-md); color: var(--text-primary); font-size: 0.9rem;">
+                <button id="runRagTestBtn" style="padding: 12px 24px; background: var(--accent-primary); border: none; border-radius: var(--radius-md); color: white; font-weight: 600; cursor: pointer; transition: opacity 0.2s;">⚡ 3-Chunk Parçalarını Getir (Anında)</button>
+            </div>
+
+            <div id="ragResultsContainer" style="display: none; margin-top: 24px;">
+                <div class="meta-pills">
+                    <div class="meta-pill">🎯 Seçilen Hiyerarşik Başlık: <strong id="ragSelectedTitle">-</strong></div>
+                    <div class="meta-pill">📌 Target Chunk (Re-Rank 1.): <strong id="ragTargetChunkId">-</strong></div>
+                </div>
+
+                <div style="margin-top: 16px;">
+                    <h4 style="font-size: 0.95rem; color: var(--accent-primary); margin-bottom: 8px;">📦 Chat Modelinize Beslenen 3'lü Birleştirilmiş Chunk Parçaları (Önceki + Hedef + Sonraki):</h4>
+                    <pre id="ragExpandedText" style="background: var(--bg-primary); border: 1px solid var(--surface-border); border-radius: var(--radius-md); padding: 16px; font-family: 'Fira Code', monospace; font-size: 0.83rem; color: #a7f3d0; white-space: pre-wrap; max-height: 400px; overflow-y: auto;"></pre>
+                </div>
+            </div>
+        </div>
     </div>
 
     <div class="loading-overlay" id="loadingOverlay" style="display:none;">
@@ -197,7 +223,7 @@
             <div class="loading-spinner">
                 <div class="spinner-ring"></div>
             </div>
-            <h3 class="loading-title">Bookmark Yapısı Taranıyor...</h3>
+            <h3 class="loading-title" id="loadingTitle">İşlem Yapılıyor...</h3>
         </div>
     </div>
 
@@ -215,6 +241,81 @@
         const fallbackContainer = document.getElementById('fallbackContainer');
         const fallbackPages = document.getElementById('fallbackPages');
         const loadingOverlay = document.getElementById('loadingOverlay');
+        const loadingTitle = document.getElementById('loadingTitle');
+
+        // RAG Test Elementleri
+        const ragBookSelect = document.getElementById('ragBookSelect');
+        const ragQueryInput = document.getElementById('ragQueryInput');
+        const runRagTestBtn = document.getElementById('runRagTestBtn');
+        const ragResultsContainer = document.getElementById('ragResultsContainer');
+        const ragSelectedTitle = document.getElementById('ragSelectedTitle');
+        const ragTargetChunkId = document.getElementById('ragTargetChunkId');
+        const ragExpandedText = document.getElementById('ragExpandedText');
+
+        // Kitapları yükle
+        async function loadBooks() {
+            try {
+                const res = await fetch('/api/books');
+                if (!res.ok) return;
+                const books = await res.json();
+                ragBookSelect.innerHTML = '<option value="">📚 Kitap Seçiniz (Tüm Kitaplar / Otomatik)</option>';
+                books.forEach(b => {
+                    const opt = document.createElement('option');
+                    opt.value = b.id;
+                    opt.textContent = `${b.title} (${b.filename})`;
+                    ragBookSelect.appendChild(opt);
+                });
+            } catch (e) {
+                console.error("Kitaplar yüklenemedi:", e);
+            }
+        }
+        loadBooks();
+
+        // RAG Testini Çalıştır (0 LLM, sadece vektör + 3-chunk getir)
+        runRagTestBtn.addEventListener('click', async () => {
+            const query = ragQueryInput.value.trim();
+            if (!query) {
+                alert("Lütfen bir sorgu mesajı yazın.");
+                return;
+            }
+
+            loadingTitle.textContent = "Vektör Arama & Re-Rank Yapılıyor...";
+            loadingOverlay.style.display = 'flex';
+
+            try {
+                const res = await fetch('/api/chat/test-rag', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        message: query,
+                        book_id: ragBookSelect.value || null
+                    })
+                });
+
+                const data = await res.json();
+
+                if (!res.ok || !data.success) {
+                    throw new Error(data.error || data.detail || "RAG arama hatası");
+                }
+
+                ragSelectedTitle.textContent = data.selected_title || "Genel / Bulunamadı";
+                ragTargetChunkId.textContent = data.target_chunk_id || "Bilinmiyor";
+                ragExpandedText.textContent = data.rag_context || data.expanded_text || "Bağlam bulunamadı.";
+
+                ragResultsContainer.style.display = 'block';
+            } catch (err) {
+                alert("Hata: " + err.message);
+            } finally {
+                loadingOverlay.style.display = 'none';
+            }
+        });
+
+        // Enter tuşu ile RAG test çalıştırma
+        ragQueryInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                runRagTestBtn.click();
+            }
+        });
 
         testUploadArea.addEventListener('click', () => testFileInput.click());
 
@@ -243,6 +344,7 @@
         });
 
         async function runInspection(file) {
+            loadingTitle.textContent = "Bookmark Yapısı Taranıyor...";
             loadingOverlay.style.display = 'flex';
             const formData = new FormData();
             formData.append('file', file);

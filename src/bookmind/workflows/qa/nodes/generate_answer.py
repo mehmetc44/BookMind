@@ -8,7 +8,14 @@ from bookmind.workflows.qa.state import ChatGraphState
 
 
 async def chat_agent_node(state: ChatGraphState) -> dict[str, Any]:
-    """Sohbet asistanını çalıştıran LangGraph düğümü."""
+    """Sohbet asistanını çalıştıran ve RAG bağlamı ile yanıt üreten LangGraph düğümü."""
     chat_agent = ChatAgent()
-    reply = await chat_agent.run(state["user_message"])
+    rag_context = state.get("rag_context")
+    history = state.get("history")
+
+    reply = await chat_agent.ainvoke(
+        user_message=state["user_message"],
+        history=history,
+        extra_context=rag_context,
+    )
     return {"response": reply}
