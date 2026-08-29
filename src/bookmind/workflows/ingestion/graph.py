@@ -70,6 +70,7 @@ class PDFProcessingGraph:
                 "BOOKMARK": "build_hierarchy_list",
                 "PHYSICAL_TOC": "extract_toc_page",
                 "UNSTRUCTURED": "map_unstructured_layout",
+                END: END,
             },
         )
 
