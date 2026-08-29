@@ -1,4 +1,4 @@
-"""ai.services.layout_parser — Ham Fiziksel Öğeleri (Başlık, Yazı, Görsel, Tablo, Formül) Etiketleyen 'Gözlemci' Motoru."""
+"""ai.services.layout_parser — Ham Fiziksel Öğeleri (Başlık, Yazı, Görsel, Tablo, Formül) Etiketleyen ve Birleştiren 'Gözlemci' Motoru."""
 
 from __future__ import annotations
 
@@ -48,30 +48,33 @@ class LayoutElement:
 
 
 class LayoutParserEngine:
-    """PDF belgesini sayfa sayfa tarayıp tür bazlı fiziki etiketleme (Layout Parsing) yapan motor."""
+    """PDF belgesini tarayıp tür bazlı fiziki etiketleme ve kural tabanlı birleştirme (Aggregation) yapan motor."""
 
     FORMULA_PATTERNS = re.compile(
         r"[\u2200-\u22FF\u2A00-\u2AFF]|\b(lim|sum|int|sqrt|log|sin|cos|tan)\b|\b[a-zA-Z]\s*=\s*[-+]?\d+|\b\d+\s*[\+\-\*/=]\s*\d+|\b\w+_\{\w+\}|\b\w+\^\{\w+\}",
         re.IGNORECASE,
     )
 
+    FORM_FIELD_PATTERNS = re.compile(
+        r"^(sayı|konu|tarih|t\.c\.|tel|faks|e-posta|adres|evrak)\s*[:\.]",
+        re.IGNORECASE,
+    )
+
     @classmethod
     def parse_pdf_layout(cls, pdf_path: str | Path, max_pages: int | None = None) -> list[dict[str, Any]]:
-        """PDF dosyasını tarayarak tür bazlı fiziki etiketlenmiş elemanlar listesi döndürür."""
+        """PDF dosyasını tarar, kural tabanlı birleştirme ve sahte başlık filtresi uygulayarak etiketlenmiş elemanlar listesi döndürür."""
         doc = pymupdf.open(str(pdf_path))
         total_pages = len(doc)
         pages_to_process = min(max_pages, total_pages) if max_pages else total_pages
 
-        # 1. Aşama: Sayfa metinlerinin ortalama font boyutunu bul (Body text baseline)
         baseline_font_size = cls._calculate_baseline_font_size(doc, pages_to_process)
-
         elements: list[LayoutElement] = []
 
         for page_idx in range(pages_to_process):
             page_num = page_idx + 1
             page = doc[page_idx]
 
-            # 2. Aşama: Tabloları Tespit Et (PyMuPDF find_tables)
+            # 1. Tablolar
             table_bboxes = []
             try:
                 tables = page.find_tables()
@@ -90,12 +93,10 @@ class LayoutParserEngine:
             except Exception:
                 pass
 
-            # 3. Aşama: Görselleri Tespit Et (Images)
-            image_bboxes = []
+            # 2. Görseller
             for img_info in page.get_image_info(hashes=False):
                 img_bbox = img_info.get("bbox")
                 if img_bbox:
-                    image_bboxes.append(img_bbox)
                     elements.append(
                         LayoutElement(
                             element_type="image",
@@ -106,7 +107,7 @@ class LayoutParserEngine:
                         )
                     )
 
-            # 4. Aşama: Metin Bloklarını Doku ve Font Boyutuyla Analiz Et
+            # 3. Metin Blokları
             text_page_dict = page.get_text("dict")
             for block in text_page_dict.get("blocks", []):
                 if block.get("type") != 0:
@@ -160,7 +161,96 @@ class LayoutParserEngine:
                 )
 
         doc.close()
-        return [e.to_dict() for e in elements]
+
+        # 4. Aşama: Kural Tabanlı Birleştirme ve Filtreleme (Aggregation & Post-Processing)
+        processed_elements = cls._post_process_elements(elements)
+        return [e.to_dict() for e in processed_elements]
+
+    @classmethod
+    def _post_process_elements(cls, raw_elements: list[LayoutElement]) -> list[LayoutElement]:
+        """Ardışık bölünen başlıkları birleştirir, sahte başlıkları düzeltir ve çakışan görselleri teke indirir."""
+        if not raw_elements:
+            return []
+
+        # 1. Adım: Çakışan / Şeffaf Maske Resimlerini Birleştir (Image Deduplication)
+        elements_step1: list[LayoutElement] = []
+        for el in raw_elements:
+            if el.type == "image" and el.bbox:
+                # Aynı sayfadaki benzer / üst üste çakışan resmi kontrol et
+                is_duplicate = False
+                for existing in elements_step1:
+                    if existing.type == "image" and existing.page == el.page and existing.bbox:
+                        if cls._bboxes_overlap_significantly(el.bbox, existing.bbox):
+                            is_duplicate = True
+                            break
+                if not is_duplicate:
+                    elements_step1.append(el)
+            else:
+                elements_step1.append(el)
+
+        # 2. Adım: Sahte Başlık Filtresi (Pseudo-Heading Demotion)
+        elements_step2: list[LayoutElement] = []
+        for el in elements_step1:
+            if el.type == "heading":
+                content_clean = el.content.strip()
+
+                # Form alanı kalıbı mı? (Sayı :, Konu :, Tarih :)
+                if cls.FORM_FIELD_PATTERNS.search(content_clean):
+                    el.type = "text"
+
+                # Çok mu uzun VEYA noktalı cümle mi?
+                elif len(content_clean) > 130 or (len(content_clean) > 55 and content_clean.endswith((".", ";"))):
+                    el.type = "text"
+
+            elements_step2.append(el)
+
+        # 3. Adım: Ardışık Bölünmüş Başlıkları Birleştir (Split Heading Aggregation)
+        merged_elements: list[LayoutElement] = []
+        idx = 0
+        n = len(elements_step2)
+
+        while idx < n:
+            curr = elements_step2[idx]
+
+            # Ardışık iki heading ve dikey mesafe yakınsa birleştir
+            if curr.type == "heading" and idx + 1 < n:
+                next_el = elements_step2[idx + 1]
+
+                if next_el.type == "heading" and next_el.page == curr.page:
+                    # Dikey mesafe kontrolü (Vertical proximity check)
+                    gap = 0.0
+                    if curr.bbox and next_el.bbox:
+                        gap = next_el.bbox[1] - curr.bbox[3]
+
+                    font_diff = abs(curr.font_size - next_el.font_size)
+
+                    # Aralarındaki mesafe 20px'ten azsa ve font boyutları yakınsa birleştir
+                    if gap < 20.0 and font_diff < 3.5:
+                        merged_content = f"{curr.content} {next_el.content}".strip()
+                        new_bbox = None
+                        if curr.bbox and next_el.bbox:
+                            new_bbox = (
+                                min(curr.bbox[0], next_el.bbox[0]),
+                                min(curr.bbox[1], next_el.bbox[1]),
+                                max(curr.bbox[2], next_el.bbox[2]),
+                                max(curr.bbox[3], next_el.bbox[3]),
+                            )
+
+                        curr = LayoutElement(
+                            element_type="heading",
+                            content=merged_content,
+                            page=curr.page,
+                            bbox=new_bbox,
+                            font_size=max(curr.font_size, next_el.font_size),
+                            is_bold=curr.is_bold or next_el.is_bold,
+                            meta=curr.meta,
+                        )
+                        idx += 1  # Bir sonraki el atlandı
+
+            merged_elements.append(curr)
+            idx += 1
+
+        return merged_elements
 
     @classmethod
     def _classify_text_block(
@@ -215,3 +305,29 @@ class LayoutParserEngine:
             if x0 >= tx0 - 2 and y0 >= ty0 - 2 and x1 <= tx1 + 2 and y1 <= ty1 + 2:
                 return True
         return False
+
+    @staticmethod
+    def _bboxes_overlap_significantly(b1: tuple[float, float, float, float], b2: tuple[float, float, float, float]) -> bool:
+        """İki BBox'ın birbiriyle dikey/yatayda %60'tan fazla çakışıp çakışmadığını hesaplar."""
+        x0_1, y0_1, x1_1, y1_1 = b1
+        x0_2, y0_2, x1_2, y1_2 = b2
+
+        inter_x0 = max(x0_1, x0_2)
+        inter_y0 = max(y0_1, y0_2)
+        inter_x1 = min(x1_1, x1_2)
+        inter_y1 = min(y1_1, y1_2)
+
+        if inter_x1 <= inter_x0 or inter_y1 <= inter_y0:
+            return False
+
+        inter_area = (inter_x1 - inter_x0) * (inter_y1 - inter_y0)
+        area1 = (x1_1 - x0_1) * (y1_1 - y0_1)
+        area2 = (x1_2 - x0_2) * (y1_2 - y0_2)
+
+        if area1 <= 0 or area2 <= 0:
+            return False
+
+        ratio1 = inter_area / area1
+        ratio2 = inter_area / area2
+
+        return ratio1 > 0.60 or ratio2 > 0.60
