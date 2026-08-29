@@ -8,7 +8,7 @@ from typing import Any
 from fastapi import HTTPException, UploadFile
 
 from bookmind.infrastructure.configuration.settings import Settings
-from bookmind.infrastructure.database.repositories.map_repository import MapRepository
+from bookmind.infrastructure.services import PDFFileService
 from bookmind.workflows.ingestion.graph import PDFProcessingGraph
 
 
@@ -69,7 +69,7 @@ class CreateBookCommandHandler:
                 detail=result.get("error", "PDF çözümlenemedi veya etiket çıkarılamadı."),
             )
 
-        # JSON dosyasını MapRepository ile kaydet
+        # JSON dosyasını PDFFileService ile kaydet
         map_data = {
             "meta": {
                 "id": book_id,
@@ -81,7 +81,7 @@ class CreateBookCommandHandler:
             "raw_layout_elements": layout_elements,
         }
 
-        MapRepository.save_book_map(book_id, map_data)
+        PDFFileService.save_book_map(book_id, map_data)
 
         return {
             "success": True,

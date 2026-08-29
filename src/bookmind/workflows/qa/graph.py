@@ -32,9 +32,9 @@ async def stream_chat_graph(
     # Eğer kitap bağlamı varsa haritayı çekip extra_context olarak ekle
     extra_context = None
     if book_id:
-        from bookmind.infrastructure.database.repositories.map_repository import MapRepository
+        from bookmind.infrastructure.services import PDFFileService
 
-        map_data = MapRepository.get_book_map(book_id)
+        map_data = PDFFileService.get_book_map(book_id)
         if map_data and "book_map" in map_data:
             extra_context = f"AKTİF KİTAP HARİTASI BILGILERI:\n{map_data['book_map']}"
 

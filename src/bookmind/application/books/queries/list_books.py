@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from bookmind.domain.books.entities import BookInfo
-from bookmind.infrastructure.database.repositories.map_repository import MapRepository
+from bookmind.infrastructure.services import PDFFileService
 
 
 class ListBooksQueryHandler:
@@ -12,4 +12,4 @@ class ListBooksQueryHandler:
     @classmethod
     def handle(cls) -> list[BookInfo]:
         """Sistemdeki tüm kayıtlı kitapları listeler."""
-        return MapRepository.list_books()
+        return PDFFileService.list_books()

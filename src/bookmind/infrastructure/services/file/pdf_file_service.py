@@ -1,4 +1,4 @@
-"""infrastructure.database.repositories.map_repository — File system persistence repository implementing book storage."""
+"""infrastructure.services.file.pdf_file_service — File system persistence service for PDF book maps and documents."""
 
 from __future__ import annotations
 
@@ -12,8 +12,8 @@ from bookmind.infrastructure.configuration.settings import Settings
 MAPS_DIR = Settings.MAPS_DIR
 
 
-class MapRepository:
-    """Kitap haritası JSON dosyalarını okuyan ve yazan kalıcılık reposu."""
+class PDFFileService:
+    """Kitap haritası JSON dosyalarını okuyan, yazan ve silen dosya kalıcılık servisi."""
 
     @classmethod
     def list_books(cls) -> list[BookInfo]:
@@ -54,3 +54,25 @@ class MapRepository:
         map_path = MAPS_DIR / f"{book_id}.json"
         map_path.write_text(json.dumps(map_data, ensure_ascii=False, indent=2), encoding="utf-8")
         return map_path
+
+    @classmethod
+    def delete_book(cls, book_id: str) -> bool:
+        """Belirtilen book_id'ye ait harita dosyasını ve kaydedilmiş fiziki PDF'i siler."""
+        map_path = MAPS_DIR / f"{book_id}.json"
+        deleted = False
+
+        if map_path.exists():
+            try:
+                data = json.loads(map_path.read_text(encoding="utf-8"))
+                pdf_path_str = data.get("meta", {}).get("pdf_path")
+                if pdf_path_str:
+                    pdf_path = Path(pdf_path_str)
+                    if pdf_path.exists():
+                        pdf_path.unlink()
+            except Exception:
+                pass
+
+            map_path.unlink()
+            deleted = True
+
+        return deleted
