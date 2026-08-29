@@ -1,4 +1,4 @@
-"""web.schemas.chat — Chat-specific API request/response validation schemas."""
+"""web.dtos.chat — Chat-specific API request/response validation DTOs."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 
 
 class ChatMessage(BaseModel):
-    """Chat isteği şeması — frontend'den gelen payload."""
+    """Chat isteği DTO'su — frontend'den gelen payload."""
 
     book_id: str | None = Field(
         default=None,
@@ -20,7 +20,7 @@ class ChatMessage(BaseModel):
 
 
 class ChatResponse(BaseModel):
-    """Chat yanıt şeması — API'den dönen payload."""
+    """Chat yanıt DTO'su — API'den dönen payload."""
 
     success: bool = Field(..., description="İşlem başarılı mı?")
     reply: str = Field(default="", description="Modelin yanıt metni")

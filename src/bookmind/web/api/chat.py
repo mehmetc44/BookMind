@@ -8,7 +8,7 @@ from fastapi.responses import StreamingResponse
 
 from bookmind.ai.agents import ChatAgent
 from bookmind.application.qa.ask_book import AskBookQueryHandler
-from bookmind.web.schemas.chat import ChatMessage, ChatResponse
+from bookmind.web.dtos.chat import ChatMessage, ChatResponse
 
 router = APIRouter(prefix="/api", tags=["Chat"])
 
