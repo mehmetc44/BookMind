@@ -1,20 +1,30 @@
-"""domain.books.entities — Book domain entities and value objects."""
+"""domain.books.entities — Book domain entities, clean hierarchy objects, and chunk items."""
 
 from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
 
-class Chapter(BaseModel):
-    """Bir kitap bölümünü temsil eder. Recursive olarak alt bölümler içerebilir."""
+class ChunkItem(BaseModel):
+    """250 kelimelik bağlantılı metin parçası (Chunk)."""
 
-    id: str = Field(..., description="Benzersiz bölüm kimliği — ör: chapter_1_2")
+    chunk_id: str = Field(..., description="Benzersiz chunk ID — ör: chunk_a621_001")
+    prev_chunk_id: str | None = Field(default=None, description="Bir önceki komşu chunk ID'si")
+    next_chunk_id: str | None = Field(default=None, description="Bir sonraki komşu chunk ID'si")
+    page_start: int = Field(..., description="Chunk'ın başladığı sayfa")
+    page_end: int = Field(..., description="Chunk'ın bittiği sayfa")
+    content: str = Field(..., description="250 kelimelik metin içeriği")
+    word_count: int = Field(..., description="Kelime sayısı")
+
+
+class Chapter(BaseModel):
+    """Bir kitap bölümünü temsil eder. Yalın hiyerarşik yapı (summary/topics kaldırıldı)."""
+
+    id: str = Field(..., description="Benzersiz bölüm kimliği — ör: chapter_1")
     title: str = Field(..., description="Bölüm başlığı")
     page_start: int = Field(..., description="Başlangıç sayfa numarası")
     page_end: int = Field(..., description="Bitiş sayfa numarası")
-    summary: str = Field(default="", description="Türkçe bölüm özeti")
-    topics: list[str] = Field(default_factory=list, description="Bölümün ana konuları")
-    keywords: list[str] = Field(default_factory=list, description="Teknik/İngilizce anahtar kelimeler")
+    chunks: list[ChunkItem] = Field(default_factory=list, description="Bölüme ait 250 kelimelik parçalar")
     children: list[Chapter] = Field(default_factory=list, description="Alt bölümler (recursive)")
 
 
@@ -28,7 +38,7 @@ class BookMap(BaseModel):
 
 
 class BookInfo(BaseModel):
-    """Kitap listesi API'si için özet bilgi (harita detayları olmadan)."""
+    """Kitap listesi API'si için özet bilgi."""
 
     id: str = Field(..., description="Kitap kimliği (UUID hex)")
     filename: str = Field(..., description="Orijinal PDF dosya adı")

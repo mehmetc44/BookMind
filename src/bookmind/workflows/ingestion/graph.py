@@ -7,6 +7,7 @@ from langgraph.graph import END, StateGraph
 
 from bookmind.workflows.ingestion.nodes.build_hierarchy_list import build_hierarchy_list_node
 from bookmind.workflows.ingestion.nodes.check_toc_type import check_toc_type_node
+from bookmind.workflows.ingestion.nodes.chunk_and_embed import chunk_and_embed_node
 from bookmind.workflows.ingestion.nodes.extract_toc_page import extract_toc_page_node
 from bookmind.workflows.ingestion.nodes.label_pdf_layout import label_pdf_layout_node
 from bookmind.workflows.ingestion.nodes.map_unstructured_layout import map_unstructured_layout_node
@@ -56,6 +57,9 @@ class PDFProcessingGraph:
         # 4. Düğüm: Hierarchy List (Nihai Harita Üretici)
         workflow.add_node("build_hierarchy_list", build_hierarchy_list_node)
 
+        # 5. Düğüm: Chunk & Embed (250 Kelimelik Chunking, SQLite & ChromaDB)
+        workflow.add_node("chunk_and_embed", chunk_and_embed_node)
+
         # Başlangıç noktası: HER PDF ÖNCE ETİKETLENİR
         workflow.set_entry_point("label_pdf_layout")
 
@@ -77,7 +81,12 @@ class PDFProcessingGraph:
         # 3A ve 3B Düğümlerinden 4. Düğüm (Hierarchy List)'e Birleşme
         workflow.add_edge("extract_toc_page", "build_hierarchy_list")
         workflow.add_edge("map_unstructured_layout", "build_hierarchy_list")
-        workflow.add_edge("build_hierarchy_list", END)
+
+        # 4. Düğümden 5. Düğüm (Chunk & Embed)'e Geçiş
+        workflow.add_edge("build_hierarchy_list", "chunk_and_embed")
+
+        # 5. Düğümden Çıkış
+        workflow.add_edge("chunk_and_embed", END)
 
         self._graph = workflow.compile()
         return self._graph

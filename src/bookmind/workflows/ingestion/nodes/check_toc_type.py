@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 from bookmind.ai.services import LayoutParserEngine, PDFService
 from bookmind.workflows.ingestion.state import PDFGraphState
@@ -19,9 +20,7 @@ def build_book_map_from_toc_items(title: str, total_pages: int, items: list[dict
             "title": item.get("title", f"Bölüm {idx + 1}"),
             "page_start": page_start,
             "page_end": page_end,
-            "summary": f"{item.get('title')} (Sayfa {page_start} - {page_end})",
-            "topics": [item.get("title")],
-            "keywords": [f"Sayfa {page_start}"],
+            "chunks": [],
             "children": [],
         })
 
