@@ -59,6 +59,9 @@ class Settings:
     DATA_DIR: Path = BASE_DIR / "data"
     PDFS_DIR: Path = DATA_DIR / "pdfs"
     MAPS_DIR: Path = DATA_DIR / "maps"
+    STORAGE_DIR: Path = DATA_DIR / "storage"
+    SQLITE_DB_PATH: Path = STORAGE_DIR / "bookmind.db"
+    CHROMA_DIR: Path = STORAGE_DIR / "chroma"
 
     # ── PDF İşleme ────────────────────────────────────────────────────────────
     TOC_SCAN_PAGES: int = int(os.getenv("TOC_SCAN_PAGES", "15"))
