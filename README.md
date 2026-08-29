@@ -1,6 +1,6 @@
-# BookMind 📚⚡ — SaaS-Ready AI Kitap Haritalama ve Agentic RAG Platformu
+# BookMind 📚⚡ — AI Kitap Haritalama ve Agentic RAG Platformu
 
-**BookMind**, karmaşık PDF belgelerini ve kitapları otomatik analiz ederek hiyerarşik haritalarını (`BookMap`) çıkaran, verileri vektörleştirip saklayan ve **Agentic RAG (Tool-Based RAG)** mimarisi ile kullanıcıların kitaplarla etkileşimli sohbet etmesini sağlayan SaaS ölçeğinde hazırlanmış State-of-the-Art (SOTA) bir yapay zeka platformudur.
+**BookMind**, karmaşık PDF belgelerini ve kitapları otomatik analiz ederek hiyerarşik haritalarını (`BookMap`) çıkaran, verileri vektörleştirip saklayan ve **Agentic RAG (Tool-Based RAG)** mimarisi ile kullanıcıların kitaplarla etkileşimli sohbet etmesini sağlayan State-of-the-Art (SOTA) bir yapay zeka platformudur.
 
 ---
 
@@ -92,12 +92,3 @@ uv run bookmind
 ```
 Tarayıcınızdan `http://localhost:8000` adresini açarak uygulamayı kullanmaya başlayabilirsiniz!
 Test laboratuvarı için: `http://localhost:8000/test`
-
----
-
-## 💼 SaaS Ticari Potansiyel (SaaS Readiness)
-
-BookMind altyapısı aşağıdaki SaaS iş modellerine doğrudan dönüştürülebilir durumdadır:
-- **Akıllı PDF & Kitap İnceleme Platformu (B2C SaaS)**: Öğrenciler, araştırmacılar ve akademisyenler için PDF kitap analizi ve soru-cevap servisi.
-- **Kurumsal Belge Arama ve Bilgi Yönetimi (B2B Enterprise RAG)**: Şirket içi dokümanların, teknik el kitaplarının ve mevzuatların vektörleştirilerek akıllı aranması.
-- **API-as-a-Service**: PDF Haritalama ve Agentic RAG uç noktalarının diğer yazılımlara REST API olarak sunulması.
